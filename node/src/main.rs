@@ -67,7 +67,7 @@ enum Command {
 }
 
 #[tokio::main]
-async fn tk_main() {
+async fn main() {
 	let cli = Cli::parse();
 
 	let log_level = match cli.verbose {
