@@ -1,0 +1,14 @@
+[workspace]
+resolver = "2"
+members = [
+    "node",
+    "pallets/template",
+    "runtime",
+    "store", 
+    "crypto", 
+    "network", 
+    "mempool", 
+    "consensus"
+]
+[profile.release]
+panic = "unwind"
