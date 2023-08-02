@@ -6,6 +6,10 @@
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
+use pallet_tendermint::{
+	fp_primitives, AuthorityId as TendermintId, AuthorityList as TendermintAuthorityList,
+};
+
 use pallet_grandpa::AuthorityId as GrandpaId;
 use sp_api::impl_runtime_apis;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
@@ -228,6 +232,16 @@ impl pallet_timestamp::Config for Runtime {
 	type WeightInfo = ();
 }
 
+
+/// Import the template pallet.
+pub use pallet_tendermint_template;
+
+/// Configure the pallet-template in pallets/template.
+impl pallet_tendermint_template::Config for Runtime {
+	type Event = Event;
+}
+
+
 /// Existential deposit.
 pub const EXISTENTIAL_DEPOSIT: u128 = 500;
 
@@ -274,18 +288,41 @@ impl pallet_template::Config for Runtime {
 	type WeightInfo = pallet_template::weights::SubstrateWeight<Runtime>;
 }
 
+impl pallet_tendermint::Config for Runtime {
+	// type Event = Event;
+	// type Call = Call;
+	//
+	// type KeyOwnerProofSystem = ();
+	//
+	// type KeyOwnerProof =
+	// 	<Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, TendermintId)>>::Proof;
+	//
+	// type KeyOwnerIdentification = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
+	// 	KeyTypeId,
+	// 	TendermintId,
+	// )>>::IdentificationTuple;
+	//
+	// type HandleEquivocation = ();
+	//
+	// type WeightInfo = ();
+	type MaxAuthorities = ConstU32<32>;
+}
+
 // Create the runtime by composing the FRAME pallets that were previously configured.
 construct_runtime!(
 	pub struct Runtime {
 		System: frame_system,
 		Timestamp: pallet_timestamp,
 		Aura: pallet_aura,
-		Grandpa: pallet_grandpa,
+		// Grandpa: pallet_grandpa,
+		Tendermint: pallet_tendermint,
 		Balances: pallet_balances,
 		TransactionPayment: pallet_transaction_payment,
 		Sudo: pallet_sudo,
 		// Include the custom logic from the pallet-template in the runtime.
-		TemplateModule: pallet_template,
+		// TemplateModule: pallet_template,
+		TemplateModule: pallet_tendermint_template,
+
 	}
 );
 
@@ -333,7 +370,9 @@ mod benches {
 		[pallet_balances, Balances]
 		[pallet_timestamp, Timestamp]
 		[pallet_sudo, Sudo]
-		[pallet_template, TemplateModule]
+		// [pallet_template, TemplateModule]
+		[pallet_tendermint_template, TemplateModule]
+
 	);
 }
 
