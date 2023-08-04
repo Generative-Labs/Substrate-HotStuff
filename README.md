@@ -29,7 +29,6 @@ cargo build --release
 The following command starts a single-node development chain that doesn't persist state:
 
 ```sh
-./target/release/node-template --dev
 ./target/release/node-template substrate
 ```
 
