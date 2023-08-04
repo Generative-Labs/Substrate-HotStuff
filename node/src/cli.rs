@@ -51,4 +51,7 @@ pub enum Subcommand {
 
 	/// Db meta columns information.
 	ChainInfo(sc_cli::ChainInfoCmd),
+
+	/// Remove the whole chain.
+	Substrate(sc_cli::PurgeChainCmd),
 }

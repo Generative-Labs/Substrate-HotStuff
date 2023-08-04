@@ -44,8 +44,8 @@ enum Command {
 		#[clap(short, long, value_parser, value_name = "FILE")]
 		filename: String,
 	},
-	/// Run a single node.
-	Run {
+	/// Run a HotStuff Node.
+	HotStuff {
 		/// The file containing the node keys.
 		#[clap(short, long, value_parser, value_name = "FILE")]
 		keys: String,
@@ -59,15 +59,15 @@ enum Command {
 		#[clap(short, long, value_parser, value_name = "PATH")]
 		store: String,
 	},
-	/// Deploy a local testbed with the specified number of nodes.
-	Deploy {
-		#[clap(short, long, value_parser = clap::value_parser!(u16).range(4..))]
-		nodes: u16,
+	/// Run a Substrate Node.
+	Substrate {
+		#[clap(short, long, value_parser, value_name = "NODETYPE")]
+		nodetype: Option<String>,
 	},
 }
 
-#[tokio::main]
-async fn main() {
+// #[tokio::main]
+fn main() {
 	let cli = Cli::parse();
 
 	let log_level = match cli.verbose {
@@ -78,34 +78,36 @@ async fn main() {
 		_ => "trace",
 	};
 	let mut logger = env_logger::Builder::from_env(Env::default().default_filter_or(log_level));
-	#[cfg(feature = "benchmark")]
-	logger.format_timestamp_millis();
-	logger.init();
 
 	match cli.command {
 		Command::Keys { filename } =>
 			if let Err(e) = Node::print_key_file(&filename) {
 				error!("{}", e);
 			},
-		Command::Run { keys, committee, parameters, store } =>
-			match Node::new(&committee, &keys, &store, parameters).await {
+		Command::HotStuff { keys, committee, parameters, store } =>
+			match Node::new(&committee, &keys, &store, parameters) {
 				Ok(mut node) => {
-					println!("Starting nodes.");
-					tokio::spawn(async move {
-						node.analyze_block().await;
-					})
-					.await
-					.expect("Failed to analyze committed blocks");
-
-					let _ = tokio::spawn(start_substrate_node()).await;
+					println!("Starting hotstuff node.");
+					tokio::runtime::Builder::new_current_thread()
+						.enable_all()
+						.build()
+						.unwrap()
+						.block_on(async {
+							tokio::spawn(async move {
+								node.analyze_block().await;
+							})
+							.await
+							.expect("Failed to analyze committed blocks");
+						})
 				},
 				Err(e) => error!("{}", e),
 			},
-		Command::Deploy { nodes } => match deploy_testbed(nodes) {
-			Ok(handles) => {
-				let _ = join_all(handles).await;
+		Command::Substrate { nodetype } => match start_substrate_node() {
+			Ok(_) => {
+				// let _ = join_all(handles).await;
+				// let _ = start_substrate_node().await;
 			},
-			Err(e) => error!("Failed to deploy testbed: {}", e),
+			Err(e) => error!("Failed to start substrate node: {}", e),
 		},
 	}
 }
@@ -121,8 +123,8 @@ fn deploy_testbed(nodes: u16) -> Result<Vec<JoinHandle<()>>, Box<dyn std::error:
 			.map(|(i, key)| {
 				let name = key.name;
 				let stake = 1;
-				let front = format!("127.0.0.1:{}", 25_000 + i).parse().unwrap();
-				let mempool = format!("127.0.0.1:{}", 25_100 + i).parse().unwrap();
+				let front = format!("0.0.0.0:{}", 25_000 + i).parse().unwrap();
+				let mempool = format!("0.0.0.0:{}", 25_100 + i).parse().unwrap();
 				(name, stake, front, mempool)
 			})
 			.collect(),
@@ -134,7 +136,7 @@ fn deploy_testbed(nodes: u16) -> Result<Vec<JoinHandle<()>>, Box<dyn std::error:
 			.map(|(i, key)| {
 				let name = key.name;
 				let stake = 1;
-				let addresses = format!("127.0.0.1:{}", 25_200 + i).parse().unwrap();
+				let addresses = format!("0.0.0.0:{}", 25_200 + i).parse().unwrap();
 				(name, stake, addresses)
 			})
 			.collect(),
@@ -157,7 +159,7 @@ fn deploy_testbed(nodes: u16) -> Result<Vec<JoinHandle<()>>, Box<dyn std::error:
 			let _ = fs::remove_dir_all(&store_path);
 
 			Ok(tokio::spawn(async move {
-				match Node::new(committee_file, &key_file, &store_path, None).await {
+				match Node::new(committee_file, &key_file, &store_path, None) {
 					Ok(mut node) => {
 						// Sink the commit channel.
 						while node.commit.recv().await.is_some() {}
@@ -169,6 +171,6 @@ fn deploy_testbed(nodes: u16) -> Result<Vec<JoinHandle<()>>, Box<dyn std::error:
 		.collect::<Result<_, Box<dyn std::error::Error>>>()
 }
 
-async fn start_substrate_node() -> sc_cli::Result<()> {
+fn start_substrate_node() -> sc_cli::Result<()> {
 	command::run()
 }
