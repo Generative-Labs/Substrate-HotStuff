@@ -17,5 +17,6 @@ members = [
 panic = "unwind"
 
 
-# [patch.crates-io]
-# finality-tendermint = { path = "./client/finality-tendermint" }
+[patch.crates-io]
+finality-tendermint = { path = "./finality-tendermint" }
+
