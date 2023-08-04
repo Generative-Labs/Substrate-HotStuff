@@ -1,4 +1,4 @@
-// Copyright(C) Facebook, Inc. and its affiliates.
+// Copyright(C) Web3MQ, Inc. and its affiliates.
 mod error;
 mod receiver;
 mod reliable_sender;
