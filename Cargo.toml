@@ -3,12 +3,19 @@ resolver = "2"
 members = [
     "node",
     "pallets/template",
+    "pallets/tendermint",
     "runtime",
     "store", 
     "crypto", 
     "network", 
     "mempool", 
-    "consensus"
+    "consensus",
+    "primitives/finality-tendermint",
+    "client/finality-tendermint",
 ]
 [profile.release]
 panic = "unwind"
+
+
+# [patch.crates-io]
+# finality-tendermint = { path = "./client/finality-tendermint" }
