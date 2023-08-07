@@ -10,7 +10,7 @@ use codec::{Codec, Decode, Encode};
 // use scale_info::TypeInfo;
 
 #[cfg(feature = "std")]
-use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
+use sp_keystore::{Keystore, KeystorePtr};
 // use sp_runtime::{traits::NumberFor, ConsensusEngineId, RuntimeDebug};
 use sp_runtime::{ConsensusEngineId, RuntimeDebug};
 // use sp_std::{borrow::Cow, vec::Vec};
@@ -24,8 +24,10 @@ use finality_tendermint::messages;
 /// Key type for Tendermint module
 pub const KEY_TYPE: sp_core::crypto::KeyTypeId = sp_application_crypto::KeyTypeId(*b"tdmt");
 
+
 mod app {
 	use sp_application_crypto::{app_crypto, ed25519};
+
 	app_crypto!(ed25519, super::KEY_TYPE);
 }
 
@@ -216,10 +218,11 @@ where
 	valid
 }
 
+
 /// Localizes the message to the given set and round and signs the payload.
 #[cfg(feature = "std")]
 pub fn sign_message<H, N>(
-	keystore: SyncCryptoStorePtr,
+	keystore: KeystorePtr,
 	message: messages::Message<H, N>,
 	public: AuthorityId,
 	round: RoundNumber,
@@ -229,14 +232,25 @@ where
 	H: Encode,
 	N: Encode,
 {
-	use sp_application_crypto::AppKey;
-	// use sp_core::crypto::Public;
+	use sp_application_crypto::AppCrypto;
+	use sp_core::Pair;
+	use sp_core::crypto::Public;
+
+    let crypto_id = public.into_inner();
+
+	// &public.to_public_crypto_pair()
+	
+    let keytype_id = public.into();
 
 	let encoded = localized_payload(round, set_id, &message);
-	let signature = SyncCryptoStore::sign_with(
-		&*keystore,
-		AuthorityId::ID,
-		&public.to_public_crypto_pair(),
+
+    let public_ref: &[u8] = &public.into_inner();
+
+	let signature = Keystore::sign_with(
+		&keystore,
+		keytype_id,
+		crypto_id,
+		public_ref,
 		&encoded[..],
 	)
 	.ok()
