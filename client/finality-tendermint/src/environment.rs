@@ -7,7 +7,7 @@ use std::{
 
 use crate::{
 	authorities::{AuthoritySet, SharedAuthoritySet},
-	communication::Network as NetworkT,
+	communication::{Network as NetworkT, Syncing},
 	justification::TendermintJustification,
 	local_authority_id,
 	notification::TendermintJustificationSender,
@@ -44,13 +44,13 @@ type SignedCommit<Block> = messages::SignedCommit<
 type HistoricalVotes<Block> = Vec<SignedCommit<Block>>;
 
 /// The environment we run TDMT in.
-pub(crate) struct Environment<Backend, Block: BlockT, C, N: NetworkT<Block>, SC> {
+pub(crate) struct Environment<Backend, Block: BlockT, C, N: NetworkT<Block>, SC, S: Syncing<Block>> {
 	pub(crate) client: Arc<C>,
 	pub(crate) select_chain: SC,
 	pub(crate) voters: Arc<VoterSet<AuthorityId>>,
 	pub(crate) config: Config,
 	pub(crate) authority_set: SharedAuthoritySet<Block::Hash, NumberFor<Block>>,
-	pub(crate) network: crate::communication::NetworkBridge<Block, N>,
+	pub(crate) network: crate::communication::NetworkBridge<Block, N, S>,
 	pub(crate) set_id: SetId,
 	pub(crate) voter_set_state: SharedVoterSetState<Block>,
 	pub(crate) metrics: Option<Metrics>,
@@ -59,7 +59,7 @@ pub(crate) struct Environment<Backend, Block: BlockT, C, N: NetworkT<Block>, SC>
 	pub(crate) _phantom: PhantomData<Backend>,
 }
 
-impl<BE, Block: BlockT, C, N: NetworkT<Block>, SC> Environment<BE, Block, C, N, SC> {
+impl<BE, Block: BlockT, C, N: NetworkT<Block>, SC, S: Syncing<Block>> Environment<BE, Block, C, N, SC, S> {
 	/// Updates the voter set state using the given closure. The write lock is
 	/// held during evaluation of the closure and the environment's voter set
 	/// state is set to its result if successful.
@@ -89,7 +89,7 @@ impl<BE, Block: BlockT, C, N: NetworkT<Block>, SC> Environment<BE, Block, C, N, 
 	}
 }
 
-impl<B, Block, C, N, SC> environment::Environment for Environment<B, Block, C, N, SC>
+impl<B, Block, C, N, SC, S: Syncing<Block>> environment::Environment for Environment<B, Block, C, N, SC, S>
 where
 	Block: BlockT,
 	B: BackendT<Block>,
@@ -784,7 +784,7 @@ where
 
 	let status = client.info();
 
-	if number <= status.finalized_number && client.hash(number)? == Some(hash) {
+	if number <= status.finalized_number && client.hash()? == Some(hash) {
 		// This can happen after a forced change (triggered manually from the runtime when
 		// finality is stalled), since the voter will be restarted at the median last finalized
 		// block, which can be lower than the local best finalized block.

@@ -2,7 +2,7 @@
 resolver = "2"
 members = [
     "node",
-    "pallets/template",
+    # "pallets/template",
     "pallets/tendermint",
     "runtime",
     "store", 

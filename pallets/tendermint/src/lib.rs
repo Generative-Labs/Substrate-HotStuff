@@ -1,5 +1,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
+pub use pallet::*;
+
 pub use sp_finality_tendermint as fp_primitives;
 
 use codec::{self as codec, Decode, Encode, MaxEncodedLen};
@@ -15,11 +17,10 @@ use frame_support::{
 	weights::{Pays, Weight},
 	WeakBoundedVec,
 };
-use sp_runtime::{generic::DigestItem, traits::Zero, DispatchResult, KeyTypeId};
+use sp_runtime::{generic::DigestItem, traits::Zero, DispatchResult};
 use sp_session::{GetSessionNumber, GetValidatorCount};
 use sp_staking::SessionIndex;
 
-pub use pallet::*;
 
 use scale_info::TypeInfo;
 
@@ -54,19 +55,19 @@ pub mod pallet {
 	#[pallet::getter(fn current_set_id)]
 	pub(super) type CurrentSetId<T: Config> = StorageValue<_, SetId, ValueQuery>;
 
-	#[cfg_attr(feature = "std", derive(Default))]
-	#[pallet::genesis_config]
-	pub struct GenesisConfig {
-		pub authorities: AuthorityList,
-	}
+	// #[cfg_attr(feature = "std", derive(Default))]
+	// #[pallet::genesis_config]
+	// pub struct GenesisConfig {
+	// 	pub authorities: AuthorityList,
+	// }
 
-	#[pallet::genesis_build]
-	impl<T: Config> GenesisBuild<T> for GenesisConfig {
-		fn build(&self) {
-			CurrentSetId::<T>::put(fp_primitives::SetId::default());
-			Pallet::<T>::initialize(&self.authorities)
-		}
-	}
+	// #[pallet::genesis_build]
+	// impl<T: Config> <pallet::GenesisConfig as GenesisBuild<T>>::build for GenesisConfig {
+	// 	fn build(&self) {
+	// 		CurrentSetId::<T>::put(fp_primitives::SetId::default());
+	// 		Pallet::<T>::initialize(&self.authorities)
+	// 	}
+	// }
 }
 
 impl<T: Config> Pallet<T> {

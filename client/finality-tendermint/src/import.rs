@@ -15,7 +15,26 @@ use sp_runtime::traits::Zero;
 use sc_telemetry::TelemetryHandle;
 use sc_utils::mpsc::TracingUnboundedSender;
 use sp_api::{NumberFor, TransactionFor};
-use sp_blockchain::{well_known_cache_keys, BlockStatus};
+use sp_blockchain::BlockStatus;
+/// A list of all well known keys in the blockchain cache.
+pub mod well_known_cache_keys {
+
+	pub type CacheKeyId = [u8; 4];
+
+	/// The type representing cache keys.
+	pub type Id = CacheKeyId;
+
+	/// A list of authorities.
+	pub const AUTHORITIES: Id = *b"auth";
+
+	/// Current Epoch data.
+	pub const EPOCH: Id = *b"epch";
+
+	/// Changes trie configuration.
+	pub const CHANGES_TRIE_CONFIG: Id = *b"chtr";
+}
+
+// use sp_blockchain::{BlockStatus};
 use sp_consensus::{BlockOrigin, Error as ConsensusError, SelectChain};
 use sp_finality_tendermint::TendermintApi;
 use sp_finality_tendermint::{ConsensusLog, ScheduledChange, SetId, TDMT_ENGINE_ID};
@@ -131,7 +150,7 @@ where
 		// request made as part of initial sync but that means the justification
 		// wasn't part of the block and was requested asynchronously, probably
 		// makes sense to log in that case.
-		TendermintBlockImport::import_justification(self, hash, number, justification, false, false)
+		TendermintBlockImport::import_justification(self, hash, number, justification)
 	}
 }
 
@@ -450,7 +469,10 @@ where
 		let number = *block.header.number();
 		// Force imported state finality.
 		block.finalized = true;
-		let import_result = (&*self.inner).import_block(block, new_cache).await;
+		// 
+		// let import_result = (&*self.inner).import_block(block, new_cache).await;
+
+		let import_result = (&*self.inner).import_block(block).await;
 		match import_result {
 			Ok(ImportResult::Imported(aux)) => {
 				// We've just imported a new state. We trust the sync module has verified
@@ -523,7 +545,7 @@ where
 			Ok(BlockStatus::InChain) => {
 				// Strip justifications when re-importing an existing block.
 				let _justifications = block.justifications.take();
-				return (&*self.inner).import_block(block, new_cache).await;
+				return (&*self.inner).import_block(block).await;
 			},
 			Ok(BlockStatus::Unknown) => {},
 			Err(e) => return Err(ConsensusError::ClientImport(e.to_string())),
@@ -556,7 +578,7 @@ where
 					},
 				);
 			}
-			return (&*self.inner).import_block(block, new_cache).await;
+			return (&*self.inner).import_block(block).await;
 		}
 
 		// on initial sync we will restrict logging under info to avoid spam.
@@ -566,7 +588,7 @@ where
 
 		// we don't want to finalize on `inner.import_block`
 		let mut justifications = block.justifications.take();
-		let import_result = (&*self.inner).import_block(block, new_cache).await;
+		let import_result = (&*self.inner).import_block(block).await;
 
 		let mut imported_aux = {
 			match import_result {
@@ -642,8 +664,8 @@ where
 					hash,
 					number,
 					(TDMT_ENGINE_ID, justification),
-					needs_justification,
-					initial_sync,
+					// needs_justification,
+					// initial_sync,
 				);
 
 				import_res.unwrap_or_else(|err| {

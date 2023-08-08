@@ -12,9 +12,11 @@ use parity_scale_codec::{Decode, Encode};
 use parking_lot::RwLock;
 use prometheus_endpoint::{PrometheusError, Registry};
 use sc_client_api::{
-	AuxStore, Backend, BlockchainEvents, CallExecutor, ExecutionStrategy, ExecutorProvider,
+	AuxStore, Backend, BlockchainEvents, CallExecutor, ExecutorProvider,
 	Finalizer, HeaderBackend, LockImportRun, StorageProvider, TransactionFor,
 };
+pub use sp_state_machine::{ ExecutionStrategy};
+
 use sc_consensus::BlockImport;
 use sc_telemetry::{telemetry, TelemetryHandle, CONSENSUS_DEBUG, CONSENSUS_INFO};
 use sc_utils::mpsc::{tracing_unbounded, TracingUnboundedReceiver};
@@ -24,11 +26,13 @@ use sp_consensus::SelectChain;
 use sp_finality_tendermint::{
 	AuthorityId, AuthorityList, AuthoritySignature, SetId, TendermintApi,
 };
-use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
+use sp_keystore::{Keystore, KeystorePtr};
 use sp_runtime::{
 	generic::BlockId,
 	traits::{Block as BlockT, Header as HeaderT, NumberFor, Zero},
 };
+
+use communication::Syncing;
 
 use sp_runtime::RuntimeAppPublic;
 
@@ -218,7 +222,6 @@ where
 				"TendermintApi_tendermint_authorities",
 				&[],
 				ExecutionStrategy::NativeElseWasm,
-				None,
 			)
 			.and_then(|call_result| {
 				Decode::decode(&mut &call_result[..]).map_err(|err| {
@@ -305,7 +308,7 @@ where
 			}
 		})?;
 
-	let (voter_commands_tx, voter_commands_rx) = tracing_unbounded("mpsc_tendermint_voter_command");
+	let (voter_commands_tx, voter_commands_rx) = tracing_unbounded("mpsc_tendermint_voter_command", 10_000);
 
 	let (justification_sender, justification_stream) = TendermintJustificationStream::channel();
 
@@ -354,12 +357,12 @@ where
 	))
 }
 
-fn global_communication<BE, Block: BlockT, C, N>(
+fn global_communication<BE, Block: BlockT, C, N, S: Syncing<Block>>(
 	set_id: SetId,
 	voters: &Arc<VoterSet<AuthorityId>>,
 	client: Arc<C>,
-	network: &NetworkBridge<Block, N>,
-	keystore: Option<&SyncCryptoStorePtr>,
+	network: &NetworkBridge<Block, N, S>,
+	keystore: Option<&KeystorePtr>,
 	metrics: Option<until_imported::Metrics>,
 ) -> (
 	impl Stream<
@@ -411,20 +414,20 @@ impl Metrics {
 
 /// Futures that powers the voter.
 #[must_use]
-struct VoterWork<B, Block: BlockT, C, N: NetworkT<Block>, SC> {
+struct VoterWork<B, Block: BlockT, C, N: NetworkT<Block>, SC, Sync: Syncing<Block>> {
 	voter: Pin<
 		Box<dyn Future<Output = Result<(), CommandOrError<Block::Hash, NumberFor<Block>>>> + Send>,
 	>,
 	shared_voter_state: SharedVoterState<Block>,
-	env: Arc<Environment<B, Block, C, N, SC>>,
+	env: Arc<Environment<B, Block, C, N, SC, Sync>>,
 	voter_commands_rx: TracingUnboundedReceiver<VoterCommand<Block::Hash, NumberFor<Block>>>,
-	network: NetworkBridge<Block, N>,
+	network: NetworkBridge<Block, N, Sync>,
 	telemetry: Option<TelemetryHandle>,
 	/// Prometheus metrics.
 	metrics: Option<Metrics>,
 }
 
-impl<B, Block, C, N, SC> VoterWork<B, Block, C, N, SC>
+impl<B, Block, C, N, SC, S> VoterWork<B, Block, C, N, SC, S>
 where
 	Block: BlockT,
 	B: Backend<Block> + 'static,
@@ -433,11 +436,12 @@ where
 	N: NetworkT<Block> + Sync,
 	NumberFor<Block>: BlockNumberOps,
 	SC: SelectChain<Block> + 'static,
+	S: Syncing<Block>,
 {
 	fn new(
 		client: Arc<C>,
 		config: Config,
-		network: NetworkBridge<Block, N>,
+		network: NetworkBridge<Block, N, S>,
 		select_chain: SC,
 		persistent_data: PersistentData<Block>,
 		voter_commands_rx: TracingUnboundedReceiver<VoterCommand<Block::Hash, NumberFor<Block>>>,
@@ -647,8 +651,9 @@ where
 	}
 }
 
-impl<B, Block, C, N, SC> Future for VoterWork<B, Block, C, N, SC>
+impl<B, Block, C, N, SC, S> Future for VoterWork<B, Block, C, N, SC, S>
 where
+	S: Syncing<Block>,
 	Block: BlockT,
 	B: Backend<Block> + 'static,
 	N: NetworkT<Block> + Sync,
@@ -696,7 +701,7 @@ where
 	}
 }
 /// Parameters used to run Grandpa.
-pub struct TendermintParams<Block: BlockT, C, N, SC> {
+pub struct TendermintParams<Block: BlockT + sp_runtime::traits::Block, C, N, SC> {
 	/// Configuration for the GRANDPA service.
 	pub config: Config,
 	/// A link to the block import worker.
@@ -726,6 +731,7 @@ pub fn tendermint_peers_set_config(
 	sc_network::config::NonDefaultSetConfig {
 		notifications_protocol: protocol_name,
 		fallback_names: Vec::new(),
+		handshake: None,
 		// Notifications reach ~256kiB in size at the time of writing on Kusama and Polkadot.
 		max_notification_size: 1024 * 1024,
 		set_config: sc_network::config::SetConfig {
@@ -783,6 +789,7 @@ where
 		persistent_data.set_state.clone(),
 		prometheus_registry.as_ref(),
 		telemetry.clone(),
+		None,
 	);
 
 	let conf = config.clone();
@@ -903,7 +910,7 @@ pub struct Config {
 	/// Some local identifier of the voter.
 	pub name: Option<String>,
 	/// The keystore that manages the keys of this node.
-	pub keystore: Option<SyncCryptoStorePtr>,
+	pub keystore: Option<KeystorePtr>,
 	/// TelemetryHandle instance.
 	pub telemetry: Option<TelemetryHandle>,
 	/// Chain specific PBFT protocol name. See [`crate::protocol_standard_name`].
@@ -1070,10 +1077,11 @@ pub(crate) trait BlockSyncRequester<Block: BlockT> {
 	);
 }
 
-impl<Block, Network> BlockSyncRequester<Block> for NetworkBridge<Block, Network>
+impl<Block, Network, Syncing> BlockSyncRequester<Block> for NetworkBridge<Block, Network, Syncing>
 where
 	Block: BlockT,
 	Network: NetworkT<Block>,
+	Syncing: communication::Syncing<Block>,
 {
 	fn set_sync_fork_request(
 		&self,
@@ -1090,12 +1098,12 @@ where
 /// available.
 fn local_authority_id(
 	voters: &VoterSet<AuthorityId>,
-	keystore: Option<&SyncCryptoStorePtr>,
+	keystore: Option<&KeystorePtr>,
 ) -> Option<AuthorityId> {
 	keystore.and_then(|keystore| {
 		voters
 			.iter()
-			.find(|p| SyncCryptoStore::has_keys(&**keystore, &[(p.to_raw_vec(), AuthorityId::ID)]))
+			.find(|p| Keystore::has_keys(&**keystore, &[(p.to_raw_vec(), AuthorityId::ID)]))
 			.map(|p| p.clone())
 	})
 }

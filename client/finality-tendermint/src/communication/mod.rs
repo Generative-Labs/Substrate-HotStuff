@@ -8,19 +8,20 @@ use finality_tendermint::{
 	messages::{self, GlobalMessageIn, GlobalMessageOut, Precommit, Prevote, Proposal},
 	voter, VoterSet,
 };
+use sc_network_common::sync::SyncEventStream;
 use futures::{channel::mpsc, future, stream, Future, FutureExt, Sink, SinkExt, Stream, StreamExt};
 use log::{debug, trace};
 use parity_scale_codec::{Decode, Encode};
 use parking_lot::Mutex;
 use prometheus_endpoint::Registry;
-use sc_network::{NetworkService, ReputationChange};
+use sc_network::{NetworkBlock, NetworkSyncForkRequest, ReputationChange, NetworkService};
 use sc_network_gossip::{GossipEngine, Network as GossipNetwork};
 use sc_telemetry::{telemetry, TelemetryHandle, CONSENSUS_DEBUG, CONSENSUS_INFO};
 use sc_utils::mpsc::TracingUnboundedReceiver;
 use sp_finality_tendermint::{AuthorityId, AuthoritySignature, RoundNumber, SetId as SetIdNumber};
-use sp_keystore::SyncCryptoStorePtr;
+use sp_keystore::KeystorePtr;
 use sp_runtime::traits::{Block as BlockT, Hash as HashT, Header as HeaderT, NumberFor};
-
+use sc_network_common::ExHashT;
 use crate::{
 	communication::gossip::VoteMessage, environment::HasVoted, CompactCommit, Error,
 	FinalizedCommit, GlobalCommunicationIn, GlobalCommunicationOut, Message, SignedMessage,
@@ -95,7 +96,7 @@ mod benefit {
 }
 /// A type that ties together our local authority id and a keystore where it is
 /// available for signing.
-pub struct LocalIdKeystore((AuthorityId, SyncCryptoStorePtr));
+pub struct LocalIdKeystore((AuthorityId, KeystorePtr));
 
 impl LocalIdKeystore {
 	/// Returns a reference to our local authority id.
@@ -104,13 +105,13 @@ impl LocalIdKeystore {
 	}
 
 	/// Returns a reference to the keystore.
-	fn keystore(&self) -> SyncCryptoStorePtr {
+	fn keystore(&self) -> KeystorePtr {
 		(self.0).1.clone()
 	}
 }
 
-impl From<(AuthorityId, SyncCryptoStorePtr)> for LocalIdKeystore {
-	fn from(inner: (AuthorityId, SyncCryptoStorePtr)) -> LocalIdKeystore {
+impl From<(AuthorityId, KeystorePtr)> for LocalIdKeystore {
+	fn from(inner: (AuthorityId, KeystorePtr)) -> LocalIdKeystore {
 		LocalIdKeystore(inner)
 	}
 }
@@ -137,7 +138,7 @@ pub trait Network<Block: BlockT>: GossipNetwork<Block> + Clone + Send + 'static 
 impl<B, H> Network<B> for Arc<NetworkService<B, H>>
 where
 	B: BlockT,
-	H: sc_network::ExHashT,
+	H: ExHashT,
 {
 	fn set_sync_fork_request(
 		&self,
@@ -161,8 +162,9 @@ pub(crate) fn global_topic<B: BlockT>(set_id: SetIdNumber) -> B::Hash {
 
 /// Bridge between the underlying network service, gossiping consensus messages and Grandpa
 #[derive(Clone)]
-pub(crate) struct NetworkBridge<B: BlockT, N: Network<B>> {
+pub(crate) struct NetworkBridge<B: BlockT, N: Network<B>, S: Syncing<B>> {
 	service: N,
+	sync: S,
 	gossip_engine: Arc<Mutex<GossipEngine<B>>>,
 	validator: Arc<GossipValidator<B>>,
 
@@ -188,12 +190,29 @@ pub(crate) struct NetworkBridge<B: BlockT, N: Network<B>> {
 	telemetry: Option<TelemetryHandle>,
 }
 
-impl<B: BlockT, N: Network<B>> Unpin for NetworkBridge<B, N> {}
 
-impl<B: BlockT, N: Network<B>> NetworkBridge<B, N> {
+/// A handle to syncing-related services.
+///
+/// Something that provides the ability to set a fork sync request for a particular block.
+pub trait Syncing<Block: BlockT>:
+	NetworkSyncForkRequest<Block::Hash, NumberFor<Block>>
+	+ NetworkBlock<Block::Hash, NumberFor<Block>>
+	+ SyncEventStream
+	+ Clone
+	+ Send
+	+ 'static
+{
+}
+
+impl<B: BlockT, N: Network<B>, S: Syncing<B>> Unpin for NetworkBridge<B, N, S> {}
+
+// impl<B: BlockT, N: Network<B>, S: Syncing<B>> NetworkBridge<B, N, S> {
+
+impl<B: BlockT, N: Network<B>, S: Syncing<B>> NetworkBridge<B, N, S> {
 	/// Create a new network bridge.
 	pub fn new(
 		service: N,
+		sync: S,
 		config: crate::Config,
 		set_state: crate::environment::SharedVoterSetState<B>,
 		prometheus_registry: Option<&Registry>,
@@ -210,6 +229,7 @@ impl<B: BlockT, N: Network<B>> NetworkBridge<B, N> {
 		// Create GossipEngine.
 		let gossip_engine = Arc::new(Mutex::new(GossipEngine::new(
 			service.clone(),
+			sync.clone(),
 			protocal,
 			validator.clone(),
 			prometheus_registry,
@@ -254,6 +274,7 @@ impl<B: BlockT, N: Network<B>> NetworkBridge<B, N> {
 
 		NetworkBridge {
 			service,
+			sync,
 			gossip_engine,
 			validator,
 			neighbor_sender: neighbor_packet_sender,
@@ -432,7 +453,7 @@ impl<B: BlockT, N: Network<B>> NetworkBridge<B, N> {
 	}
 }
 
-impl<B: BlockT, N: Network<B>> Future for NetworkBridge<B, N> {
+impl<B: BlockT, N: Network<B>, S: Syncing<B>> Future for NetworkBridge<B, N, S> {
 	type Output = Result<(), Error>;
 
 	fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
@@ -686,6 +707,7 @@ impl<Block: BlockT> Sink<Message<Block>> for OutgoingMessages<Block> {
 			// QUESTION: FKY how does grandpa deal with it if no new block generated.
 			// TODO:     It should still gossip message's, but what contained in it's target_hash
 			// and      target_height?
+	
 			let target_hash = msg.target().0.clone();
 			let signed = sp_finality_tendermint::sign_message(
 				keystore.keystore(),

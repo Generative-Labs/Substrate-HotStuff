@@ -8,6 +8,8 @@ use serde::Serialize;
 
 use codec::{Codec, Decode, Encode};
 // use scale_info::TypeInfo;
+use sp_core::crypto::Pair;
+
 
 #[cfg(feature = "std")]
 use sp_keystore::{Keystore, KeystorePtr};
@@ -21,14 +23,22 @@ use log::debug;
 
 use finality_tendermint::messages;
 
+use sp_core::crypto::KeyTypeId;
+
 /// Key type for Tendermint module
-pub const KEY_TYPE: sp_core::crypto::KeyTypeId = sp_application_crypto::KeyTypeId(*b"tdmt");
+pub const KEY_TYPE: KeyTypeId = KeyTypeId(*b"tdmt");
+
+/// Identify of a Tendermint authority.
+pub type AuthorityId = app::Public;
 
 
 mod app {
-	use sp_application_crypto::{app_crypto, ed25519};
+	// use sp_core::crypto;
 
-	app_crypto!(ed25519, super::KEY_TYPE);
+	// use sp_application_crypto::{app_crypto, ed25519};
+	use sp_application_crypto::{app_crypto, ed25519, KeyTypeId};
+
+	app_crypto!(ed25519, KeyTypeId(*b"tdmt"));
 }
 
 sp_application_crypto::with_pair! {
@@ -37,7 +47,7 @@ sp_application_crypto::with_pair! {
 }
 
 /// Identify of a Tendermint authority.
-pub type AuthorityId = app::Public;
+// pub type AuthorityId = app::Public;
 
 /// Signature for a Tendermint authority.
 pub type AuthoritySignature = app::Signature;
@@ -232,19 +242,18 @@ where
 	H: Encode,
 	N: Encode,
 {
-	use sp_application_crypto::AppCrypto;
-	use sp_core::Pair;
-	use sp_core::crypto::Public;
 
-    let crypto_id = public.into_inner();
+	use sp_application_crypto::KeyTypeId;
+	use sp_application_crypto::CryptoTypeId;
 
-	// &public.to_public_crypto_pair()
-	
-    let keytype_id = public.into();
+    let crypto_id: CryptoTypeId = CryptoTypeId(*b"ed25");
+
+	let keytype_id: KeyTypeId = KeyTypeId(*b"tdmt");
 
 	let encoded = localized_payload(round, set_id, &message);
 
-    let public_ref: &[u8] = &public.into_inner();
+    // let public_ref: &[u8] = &public.into_inner();
+	let public_ref =  public.as_ref();
 
 	let signature = Keystore::sign_with(
 		&keystore,
