@@ -165,6 +165,7 @@ pub(crate) fn global_topic<B: BlockT>(set_id: SetIdNumber) -> B::Hash {
 pub(crate) struct NetworkBridge<B: BlockT, N: Network<B>, S: Syncing<B>> {
 	service: N,
 	sync: S,
+
 	gossip_engine: Arc<Mutex<GossipEngine<B>>>,
 	validator: Arc<GossipValidator<B>>,
 

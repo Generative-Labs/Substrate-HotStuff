@@ -150,7 +150,8 @@ where
 		// request made as part of initial sync but that means the justification
 		// wasn't part of the block and was requested asynchronously, probably
 		// makes sense to log in that case.
-		TendermintBlockImport::import_justification(self, hash, number, justification)
+		TendermintBlockImport::import_justification(self, hash, number, justification, false, false);
+
 	}
 }
 
@@ -664,8 +665,8 @@ where
 					hash,
 					number,
 					(TDMT_ENGINE_ID, justification),
-					// needs_justification,
-					// initial_sync,
+					needs_justification,
+					initial_sync,
 				);
 
 				import_res.unwrap_or_else(|err| {

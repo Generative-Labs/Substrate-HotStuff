@@ -7,7 +7,7 @@ use std::{
 
 use crate::{
 	authorities::{AuthoritySet, SharedAuthoritySet},
-	communication::{Network as NetworkT, Syncing},
+	communication::{Network as NetworkT, Syncing as SyncingT},
 	justification::TendermintJustification,
 	local_authority_id,
 	notification::TendermintJustificationSender,
@@ -33,6 +33,7 @@ use sp_runtime::{
 	generic::BlockId,
 	traits::{Block as BlockT, Header as HeaderT, NumberFor, Zero},
 };
+use sc_transaction_pool_api::OffchainTransactionPoolFactory;
 
 type SignedCommit<Block> = messages::SignedCommit<
 	NumberFor<Block>,
@@ -43,23 +44,48 @@ type SignedCommit<Block> = messages::SignedCommit<
 
 type HistoricalVotes<Block> = Vec<SignedCommit<Block>>;
 
-/// The environment we run TDMT in.
-pub(crate) struct Environment<Backend, Block: BlockT, C, N: NetworkT<Block>, SC, S: Syncing<Block>> {
-	pub(crate) client: Arc<C>,
-	pub(crate) select_chain: SC,
-	pub(crate) voters: Arc<VoterSet<AuthorityId>>,
-	pub(crate) config: Config,
-	pub(crate) authority_set: SharedAuthoritySet<Block::Hash, NumberFor<Block>>,
-	pub(crate) network: crate::communication::NetworkBridge<Block, N, S>,
-	pub(crate) set_id: SetId,
-	pub(crate) voter_set_state: SharedVoterSetState<Block>,
-	pub(crate) metrics: Option<Metrics>,
-	pub(crate) justification_sender: Option<TendermintJustificationSender<Block>>,
-	pub(crate) telemetry: Option<TelemetryHandle>,
-	pub(crate) _phantom: PhantomData<Backend>,
+// /// The environment we run TDMT in.
+// pub(crate) struct Environment<Backend, Block: BlockT, C, N: NetworkT<Block>, SC> {
+// 	pub(crate) client: Arc<C>,
+// 	pub(crate) select_chain: SC,
+// 	pub(crate) voters: Arc<VoterSet<AuthorityId>>,
+// 	pub(crate) config: Config,
+// 	pub(crate) authority_set: SharedAuthoritySet<Block::Hash, NumberFor<Block>>,
+// 	pub(crate) network: crate::communication::NetworkBridge<Block, N, S>,
+// 	pub(crate) set_id: SetId,
+// 	pub(crate) voter_set_state: SharedVoterSetState<Block>,
+// 	pub(crate) metrics: Option<Metrics>,
+// 	pub(crate) justification_sender: Option<TendermintJustificationSender<Block>>,
+// 	pub(crate) telemetry: Option<TelemetryHandle>,
+// 	pub(crate) _phantom: PhantomData<Backend>,
+// }
+
+pub(crate) struct Environment<
+    Backend,
+    Block: BlockT,
+    C,
+    N: NetworkT<Block>,
+    S: SyncingT<Block>,
+    SC,
+    VR,
+> {
+    pub(crate) client: Arc<C>,
+    pub(crate) select_chain: SC,
+    pub(crate) voters: Arc<VoterSet<AuthorityId>>,
+    pub(crate) config: Config,
+    pub(crate) authority_set: SharedAuthoritySet<Block::Hash, NumberFor<Block>>,
+    pub(crate) network: crate::communication::NetworkBridge<Block, N, S>,
+    pub(crate) set_id: SetId,
+    pub(crate) voter_set_state: SharedVoterSetState<Block>,
+    pub(crate) voting_rule: VR,
+    pub(crate) metrics: Option<Metrics>,
+    pub(crate) justification_sender: Option<TendermintJustificationSender<Block>>,
+    pub(crate) telemetry: Option<TelemetryHandle>,
+    pub(crate) offchain_tx_pool_factory: OffchainTransactionPoolFactory<Block>,
+    pub(crate) _phantom: PhantomData<Backend>,
 }
 
-impl<BE, Block: BlockT, C, N: NetworkT<Block>, SC, S: Syncing<Block>> Environment<BE, Block, C, N, SC, S> {
+impl<BE, Block: BlockT, C, N: NetworkT<Block>, S: SyncingT<Block>, SC, VR> Environment<BE, Block, C, N, S, SC, VR> {
 	/// Updates the voter set state using the given closure. The write lock is
 	/// held during evaluation of the closure and the environment's voter set
 	/// state is set to its result if successful.
@@ -89,13 +115,14 @@ impl<BE, Block: BlockT, C, N: NetworkT<Block>, SC, S: Syncing<Block>> Environmen
 	}
 }
 
-impl<B, Block, C, N, SC, S: Syncing<Block>> environment::Environment for Environment<B, Block, C, N, SC, S>
+impl<BE, Block, C, N, S, SC, VR>  environment::Environment for Environment<BE, Block, C, N, S, SC, VR>
 where
 	Block: BlockT,
-	B: BackendT<Block>,
-	C: ClientForTendermint<Block, B> + 'static,
+	BE: BackendT<Block>,
+	C: ClientForTendermint<Block, BE> + 'static,
 	C::Api: TendermintApi<Block>,
 	N: NetworkT<Block>,
+	S: SyncingT<Block>,
 	SC: SelectChainT<Block> + 'static,
 	NumberFor<Block>: BlockNumberOps,
 {

@@ -3,7 +3,7 @@ use std::{marker::PhantomData, pin::Pin, sync::Arc, time::Duration};
 use crate::environment::VoterSetState;
 use authorities::{AuthoritySet, AuthoritySetChanges, SharedAuthoritySet};
 use aux_schema::PersistentData;
-use communication::{Network as NetworkT, NetworkBridge, Round};
+use communication::{Network as NetworkT, NetworkBridge, Round, Syncing as SyncingT};
 use environment::Environment;
 use finality_tendermint::{messages, voter, BlockNumberOps, Error as TendermintError, VoterSet};
 use futures::{future, prelude::*, Future, Sink, SinkExt, Stream, StreamExt, TryStreamExt};
@@ -414,29 +414,29 @@ impl Metrics {
 
 /// Futures that powers the voter.
 #[must_use]
-struct VoterWork<B, Block: BlockT, C, N: NetworkT<Block>, SC, Sync: Syncing<Block>> {
+struct VoterWork<B, Block: BlockT, C, N: NetworkT<Block>, S: SyncingT<Block>, SC, VR> {
 	voter: Pin<
 		Box<dyn Future<Output = Result<(), CommandOrError<Block::Hash, NumberFor<Block>>>> + Send>,
 	>,
 	shared_voter_state: SharedVoterState<Block>,
-	env: Arc<Environment<B, Block, C, N, SC, Sync>>,
+	env: Arc<Environment<B, Block, C, N, S, SC, VR>>,
 	voter_commands_rx: TracingUnboundedReceiver<VoterCommand<Block::Hash, NumberFor<Block>>>,
-	network: NetworkBridge<Block, N, Sync>,
+	network: NetworkBridge<Block, N, S>,
 	telemetry: Option<TelemetryHandle>,
 	/// Prometheus metrics.
 	metrics: Option<Metrics>,
 }
 
-impl<B, Block, C, N, SC, S> VoterWork<B, Block, C, N, SC, S>
+impl<B, Block, C, N, S, SC, VR> VoterWork<B, Block, C, N, S, SC, VR>
 where
 	Block: BlockT,
 	B: Backend<Block> + 'static,
 	C: ClientForTendermint<Block, B> + 'static,
 	C::Api: TendermintApi<Block>,
 	N: NetworkT<Block> + Sync,
+	S: SyncingT<Block> + Sync,
 	NumberFor<Block>: BlockNumberOps,
 	SC: SelectChain<Block> + 'static,
-	S: Syncing<Block>,
 {
 	fn new(
 		client: Arc<C>,
@@ -651,12 +651,12 @@ where
 	}
 }
 
-impl<B, Block, C, N, SC, S> Future for VoterWork<B, Block, C, N, SC, S>
+impl<B, Block, C, N, S, SC, VR> Future for VoterWork<B, Block, C, N, S, SC, VR>
 where
-	S: Syncing<Block>,
 	Block: BlockT,
 	B: Backend<Block> + 'static,
 	N: NetworkT<Block> + Sync,
+	S: SyncingT<Block> + Sync,
 	NumberFor<Block>: BlockNumberOps,
 	SC: SelectChain<Block> + 'static,
 	C: ClientForTendermint<Block, B> + 'static,
@@ -1081,7 +1081,7 @@ impl<Block, Network, Syncing> BlockSyncRequester<Block> for NetworkBridge<Block,
 where
 	Block: BlockT,
 	Network: NetworkT<Block>,
-	Syncing: communication::Syncing<Block>,
+	Syncing: SyncingT<Block>,
 {
 	fn set_sync_fork_request(
 		&self,
