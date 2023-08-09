@@ -12,3 +12,8 @@ members = [
 ]
 [profile.release]
 panic = "unwind"
+
+
+
+[patch.crates-io]
+finality-grandpa = { path = "./finality-grandpa" }

@@ -433,6 +433,7 @@ mod tests {
 		Id: From<sp_core::ed25519::Public>,
 		S: From<sp_core::ed25519::Signature>,
 	{
+		println!("🔥 finality_proofs.rs create_commit");
 		let mut precommits = Vec::new();
 
 		for voter in auth {

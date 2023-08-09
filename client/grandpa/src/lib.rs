@@ -362,6 +362,7 @@ where
 		hash: Block::Hash,
 		number: NumberFor<Block>,
 	) {
+		println!("BlockSyncRequester for NetworkBridge");
 		NetworkBridge::set_sync_fork_request(self, peers, hash, number)
 	}
 }
@@ -845,6 +846,7 @@ where
 	// Make sure that `telemetry_task` doesn't accidentally finish and kill grandpa.
 	let telemetry_task = telemetry_task.then(|_| future::pending::<()>());
 
+	println!("\t🔥run_grandpa_voter voter_work future");
 	Ok(future::select(voter_work, telemetry_task).map(drop))
 }
 

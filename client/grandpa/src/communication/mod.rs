@@ -432,12 +432,13 @@ impl<B: BlockT, N: Network<B>, S: Syncing<B>> NetworkBridge<B, N, S> {
 			has_voted,
 			telemetry: self.telemetry.clone(),
 		};
-		println!(">>>outgoing");
+		println!("\tNetworkBridge::round_communication outgoing OutgoingMessages");
 
 		// Combine incoming votes from external GRANDPA nodes with outgoing
 		// votes from our own GRANDPA voter to have a single
 		// vote-import-pipeline.
 		let incoming = stream::select(incoming, out_rx);
+		println!("\tNetworkBridge::round_communication incoming");
 
 		(incoming, outgoing)
 	}
