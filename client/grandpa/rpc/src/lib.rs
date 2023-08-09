@@ -104,6 +104,7 @@ where
 	}
 
 	fn subscribe_justifications(&self, mut sink: SubscriptionSink) -> SubscriptionResult {
+		println!("grandpa.rpc: ===> subscribe_justifications");
 		let stream = self.justification_stream.subscribe(100_000).map(
 			|x: sc_consensus_grandpa::GrandpaJustification<Block>| {
 				JustificationNotification::from(x)

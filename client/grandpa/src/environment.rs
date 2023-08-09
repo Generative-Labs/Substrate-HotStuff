@@ -460,6 +460,7 @@ impl<BE, Block: BlockT, C, N: NetworkT<Block>, S: SyncingT<Block>, SC, VR>
 	where
 		F: FnOnce(&VoterSetState<Block>) -> Result<Option<VoterSetState<Block>>, Error>,
 	{
+		println!("[Environment]->>>: update_voter_set_state");
 		self.voter_set_state.with(|voter_set_state| {
 			if let Some(set_state) = f(voter_set_state)? {
 				*voter_set_state = set_state;
@@ -517,6 +518,8 @@ where
 			let info = self.client.info();
 			(info.best_hash, info.best_number)
 		};
+
+		println!("Environment::report_equivocation best_block_number:{} best_block_hash:{}", best_block_number, best_block_hash);
 
 		let authority_set = self.authority_set.inner();
 
@@ -804,6 +807,7 @@ where
 			Some(id) => id,
 			None => return Ok(()),
 		};
+		println!("[env] env::proposed=== self.update_voter_set_state");
 
 		self.update_voter_set_state(|voter_set_state| {
 			let (completed_rounds, current_rounds) = voter_set_state.with_current_round(round)?;
@@ -847,7 +851,7 @@ where
 			Some(id) => id,
 			None => return Ok(()),
 		};
-
+		println!("[env] env::prevoted=== ");
 		let report_prevote_metrics = |prevote: &Prevote<Block::Header>| {
 			telemetry!(
 				self.telemetry;
@@ -862,6 +866,7 @@ where
 				metrics.finality_grandpa_prevotes.inc();
 			}
 		};
+		println!("\t[env] env::prevoted=== update_voter_set_state");
 
 		self.update_voter_set_state(|voter_set_state| {
 			let (completed_rounds, current_rounds) = voter_set_state.with_current_round(round)?;
@@ -906,6 +911,8 @@ where
 		round: RoundNumber,
 		precommit: Precommit<Block::Header>,
 	) -> Result<(), Self::Error> {
+		println!("[env] env::precommitted=== voting_on");
+
 		let local_id = match self.voter_set_state.voting_on(round) {
 			Some(id) => id,
 			None => return Ok(()),
@@ -926,6 +933,7 @@ where
 			}
 		};
 
+		println!("\t[env] env::precommitted=== self.update_voter_set_state");
 		self.update_voter_set_state(|voter_set_state| {
 			let (completed_rounds, current_rounds) = voter_set_state.with_current_round(round)?;
 			let current_round = current_rounds
@@ -981,6 +989,8 @@ where
 		base: (Block::Hash, NumberFor<Block>),
 		historical_votes: &HistoricalVotes<Block>,
 	) -> Result<(), Self::Error> {
+		println!("[env] env::completed===");
+
 		debug!(
 			target: LOG_TARGET,
 			"Voter {} completed round {} in set {}. Estimate = {:?}, Finalized in round = {:?}",
@@ -991,6 +1001,7 @@ where
 			state.finalized.as_ref().map(|e| e.1),
 		);
 
+		println!("\t[env] env::completed=== self.update_voter_set_state");
 		self.update_voter_set_state(|voter_set_state| {
 			// NOTE: we don't use `with_current_round` here, it is possible that
 			// we are not currently tracking this round if it is a round we
@@ -1043,6 +1054,8 @@ where
 		_base: (Block::Hash, NumberFor<Block>),
 		historical_votes: &HistoricalVotes<Block>,
 	) -> Result<(), Self::Error> {
+		println!("[env] env::concluded===");
+
 		debug!(
 			target: LOG_TARGET,
 			"Voter {} concluded round {} in set {}. Estimate = {:?}, Finalized in round = {:?}",
@@ -1052,7 +1065,7 @@ where
 			state.estimate.as_ref().map(|e| e.1),
 			state.finalized.as_ref().map(|e| e.1),
 		);
-
+		println!("\t[env] env::concluded=== self.update_voter_set_state");
 		self.update_voter_set_state(|voter_set_state| {
 			// NOTE: we don't use `with_current_round` here, because a concluded
 			// round is completed and cannot be current.
@@ -1100,6 +1113,7 @@ where
 		round: RoundNumber,
 		commit: Commit<Block::Header>,
 	) -> Result<(), Self::Error> {
+		println!("[env] env::finalize_block: hash:{} number:{} round:{}", hash, number, round);
 		finalize_block(
 			self.client.clone(),
 			&self.authority_set,
@@ -1131,6 +1145,7 @@ where
 			Self::Signature,
 		>,
 	) {
+		println!("[env] env::prevote_equivocation===");
 		warn!(
 			target: LOG_TARGET,
 			"Detected prevote equivocation in the finality worker: {:?}", equivocation
@@ -1149,6 +1164,8 @@ where
 			Self::Signature,
 		>,
 	) {
+		println!("[env] env::precommit_equivocation===");
+
 		warn!(
 			target: LOG_TARGET,
 			"Detected precommit equivocation in the finality worker: {:?}", equivocation
@@ -1368,6 +1385,8 @@ where
 	BE: BackendT<Block>,
 	Client: ClientForGrandpa<Block, BE>,
 {
+	println!("[env.rs] pub(crate) fn finalize_block");
+
 	// NOTE: lock must be held through writing to DB to avoid race. this lock
 	//       also implicitly synchronizes the check for last finalized number
 	//       below.
@@ -1441,6 +1460,7 @@ where
 			},
 		};
 
+		println!("\t[env.rs] pub(crate) fn finalize_block notify_justification");
 		notify_justification(justification_sender, || Ok(justification.clone()));
 
 		let persisted_justification = if justification_required {
@@ -1451,6 +1471,10 @@ where
 
 		// ideally some handle to a synchronization oracle would be used
 		// to avoid unconditionally notifying.
+
+
+		println!("\t[env.rs] pub(crate) fn finalize_block client.apply_finality");
+
 		client
 			.apply_finality(import_op, hash, persisted_justification, true)
 			.map_err(|e| {
@@ -1471,6 +1495,8 @@ where
 			"afg.finalized_blocks_up_to";
 			"number" => ?number, "hash" => ?hash,
 		);
+
+		println!("\t[env.rs] pub(crate) fn finalize_block aux_schema::update_best_justification");
 
 		crate::aux_schema::update_best_justification(&justification, |insert| {
 			apply_aux(import_op, insert, &[])
@@ -1511,6 +1537,8 @@ where
 		} else {
 			None
 		};
+
+		println!("\t[env.rs] pub(crate) fn finalize_block update_authority_set status.changed {}", status.changed);
 
 		if status.changed {
 			let write_result = crate::aux_schema::update_authority_set::<Block, _, _>(

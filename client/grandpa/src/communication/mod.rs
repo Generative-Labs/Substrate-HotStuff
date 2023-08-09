@@ -339,8 +339,8 @@ impl<B: BlockT, N: Network<B>, S: Syncing<B>> NetworkBridge<B, N, S> {
 	) -> (impl Stream<Item = SignedMessage<B::Header>> + Unpin, OutgoingMessages<B>) {
 		self.note_round(round, set_id, &voters);
 
-		println!(">>>round_communication: {} round:{}", set_id.0, round.0);
-		println!(">>>round_communication: voters: {}", voters.len());
+		println!(">>>NetworkBridge::round_communication: {} round:{}", set_id.0, round.0);
+		println!("\tNetworkBridge::round_communication: voters: {}", voters.len());
 
 		let keystore = keystore.and_then(|ks| {
 			let id = ks.local_id();
@@ -368,7 +368,7 @@ impl<B: BlockT, N: Network<B>, S: Syncing<B>> NetworkBridge<B, N, S> {
 					},
 					Ok(GossipMessage::Vote(msg)) => {
 						// check signature.
-						println!(">>>decoded GossipMessage: {}", msg.message.id);
+						println!("\t>>>NetworkBridge::decoded GossipMessage: {}", msg.message.id);
 
 						if !voters.contains(&msg.message.id) {
 							debug!(
@@ -452,6 +452,7 @@ impl<B: BlockT, N: Network<B>, S: Syncing<B>> NetworkBridge<B, N, S> {
 		impl Stream<Item = CommunicationIn<B>>,
 		impl Sink<CommunicationOutH<B, B::Hash>, Error = Error> + Unpin,
 	) {
+		println!("mod.rs NetworkBridge::global_communication is_voter:{}", is_voter);
 		self.validator.note_set(
 			set_id,
 			voters.iter().map(|(v, _)| v.clone()).collect(),
@@ -482,7 +483,7 @@ impl<B: BlockT, N: Network<B>, S: Syncing<B>> NetworkBridge<B, N, S> {
 			future::ok((round, commit))
 		});
 
-		println!(">>>global_communication:");
+		println!("\t>>>NetworkBridge::global_communication:");
 		(incoming, outgoing)
 	}
 
@@ -550,6 +551,8 @@ fn incoming_global<B: BlockT>(
 	neighbor_sender: periodic::NeighborPacketSender<B>,
 	telemetry: Option<TelemetryHandle>,
 ) -> impl Stream<Item = CommunicationIn<B>> {
+	println!("mod.rs incoming_global");
+
 	let process_commit = {
 		let telemetry = telemetry.clone();
 		move |msg: FullCommitMessage<B>,

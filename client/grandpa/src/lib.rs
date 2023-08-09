@@ -451,11 +451,14 @@ pub struct LinkHalf<Block: BlockT, C, SC> {
 impl<Block: BlockT, C, SC> LinkHalf<Block, C, SC> {
 	/// Get the shared authority set.
 	pub fn shared_authority_set(&self) -> &SharedAuthoritySet<Block::Hash, NumberFor<Block>> {
+		println!(">>>LinkHalf::shared_authority_set");
+
 		&self.persistent_data.authority_set
 	}
 
 	/// Get the receiving end of justification notifications.
 	pub fn justification_stream(&self) -> GrandpaJustificationStream<Block> {
+		println!(">>>LinkHalf::justification_stream");
 		self.justification_stream.clone()
 	}
 }
@@ -985,6 +988,7 @@ where
 			"authorities" => authorities,
 		);
 
+		println!("[[[[[[[ lib.rs/ rebuild_voter>>>>");
 		match &*self.env.voter_set_state.read() {
 			VoterSetState::Live { completed_rounds, .. } => {
 				let last_finalized = (chain_info.finalized_hash, chain_info.finalized_number);
@@ -999,6 +1003,7 @@ where
 				);
 
 				let last_completed_round = completed_rounds.last();
+				println!("[[[[[[[ lib.rs/  rebuild_voter>>>> global_communication: last_completed_round{}", last_completed_round.number);
 
 				let voter = voter::Voter::new(
 					self.env.clone(),
@@ -1029,6 +1034,7 @@ where
 		&mut self,
 		command: VoterCommand<Block::Hash, NumberFor<Block>>,
 	) -> Result<(), Error> {
+		println!("👷🏻‍♂️ handle_voter_command>>>");
 		match command {
 			VoterCommand::ChangeAuthorities(new) => {
 				let voters: Vec<String> =
@@ -1116,6 +1122,8 @@ where
 	type Output = Result<(), Error>;
 
 	fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+
+		println!("👷🏻‍♂️ VoterWork poll");
 		match Future::poll(Pin::new(&mut self.voter), cx) {
 			Poll::Pending => {},
 			Poll::Ready(Ok(())) => {
@@ -1134,14 +1142,19 @@ where
 				cx.waker().wake_by_ref();
 			},
 		}
+		println!("\t👷🏻‍♂️ VoterWork poll Stream::poll_next");
 
 		match Stream::poll_next(Pin::new(&mut self.voter_commands_rx), cx) {
-			Poll::Pending => {},
+			Poll::Pending => {
+				println!("\tPending");
+			},
 			Poll::Ready(None) => {
+				println!("\t Ready(None)");
 				// the `voter_commands_rx` stream should never conclude since it's never closed.
 				return Poll::Ready(Err(Error::Safety("`voter_commands_rx` was closed.".into())))
 			},
 			Poll::Ready(Some(command)) => {
+				println!("\tcommand:{}", command);
 				// some command issued externally
 				self.handle_voter_command(command)?;
 				cx.waker().wake_by_ref();

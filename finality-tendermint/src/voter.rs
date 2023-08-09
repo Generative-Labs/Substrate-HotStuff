@@ -114,6 +114,8 @@ impl<E: Environment> Voter<E> {
                     match res {
                         Ok(f_commit) => {
                             // Send commit to global_out;
+                            println!("finality-tendermint::import_justification");
+
                             self.env.finalize_block(
                                 round,
                                 f_commit.target_hash.clone(),

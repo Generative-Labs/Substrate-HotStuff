@@ -72,6 +72,7 @@ impl<Block: BlockT> GrandpaJustification<Block> {
 	where
 		C: HeaderBackend<Block>,
 	{
+		println!("justifications.rs GrandpaJustification::from_commit");
 		let mut votes_ancestries_hashes = HashSet::new();
 		let mut votes_ancestries = Vec::new();
 
@@ -156,6 +157,7 @@ impl<Block: BlockT> GrandpaJustification<Block> {
 	where
 		NumberFor<Block>: finality_grandpa::BlockNumberOps,
 	{
+		println!("justifications.rs GrandpaJustification::verify");
 		let voters = VoterSet::new(authorities.iter().cloned())
 			.ok_or(ClientError::Consensus(sp_consensus::Error::InvalidAuthoritiesSet))?;
 

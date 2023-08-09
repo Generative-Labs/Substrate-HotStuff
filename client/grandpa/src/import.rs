@@ -779,6 +779,8 @@ where
 		enacts_change: bool,
 		initial_sync: bool,
 	) -> Result<(), ConsensusError> {
+		println!("GrandpaBlockImport::import_justification");
+
 		if justification.0 != GRANDPA_ENGINE_ID {
 			// TODO: the import queue needs to be refactored to be able dispatch to the correct
 			// `JustificationImport` instance based on `ConsensusEngineId`, or we need to build a
@@ -800,6 +802,7 @@ where
 			Ok(justification) => justification,
 		};
 
+		println!("\t environment::finalize_block");
 		let result = environment::finalize_block(
 			self.inner.clone(),
 			&self.authority_set,

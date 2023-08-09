@@ -336,6 +336,7 @@ mod benches {
 		[pallet_template, TemplateModule]
 	);
 }
+use frame_support::log;
 
 impl_runtime_apis! {
 	impl sp_api::Core<Block> for Runtime {
@@ -372,6 +373,8 @@ impl_runtime_apis! {
 		}
 
 		fn finalize_block() -> <Block as BlockT>::Header {
+			log::info!("runtime::Executive::finalize_block()");
+
 			Executive::finalize_block()
 		}
 

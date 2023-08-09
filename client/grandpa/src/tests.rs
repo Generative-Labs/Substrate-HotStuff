@@ -2051,7 +2051,7 @@ async fn revert_prunes_authority_changes() {
 		);
 		builder.build().unwrap().block
 	};
-
+ 
 	let api = TestApi::new(make_ids(peers));
 
 	let mut net = GrandpaTestNet::new(api, 3, 0);
