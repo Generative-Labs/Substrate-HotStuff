@@ -84,6 +84,7 @@ consensus = { path = "../consensus" }
 mempool = { path = "../mempool" }
 
 
+hotstuff = {  path = "../hotstuff" }
 
 
 

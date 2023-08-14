@@ -326,6 +326,12 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 		);
 	}
 
+	let hotstuff_work = hotstuff::start_hotstuff()?;
+
+	task_manager
+	.spawn_essential_handle()
+	.spawn_blocking("hotstuff-entry", Some("hotstuff"), hotstuff_work);
+
 	network_starter.start_network();
 	Ok(task_manager)
 }

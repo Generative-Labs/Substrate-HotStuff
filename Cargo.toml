@@ -8,7 +8,8 @@ members = [
     "crypto", 
     "network", 
     "mempool", 
-    "consensus"
+    "consensus",
+    "hotstuff"
 ]
 [profile.release]
 panic = "unwind"

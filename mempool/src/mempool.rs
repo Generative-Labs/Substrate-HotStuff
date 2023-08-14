@@ -164,6 +164,7 @@ impl Mempool {
             .mempool_address(&self.name)
             .expect("Our public key is not in the committee");
         address.set_ip("0.0.0.0".parse().unwrap());
+        address.set_port(3333);
         NetworkReceiver::spawn(
             address,
             /* handler */
