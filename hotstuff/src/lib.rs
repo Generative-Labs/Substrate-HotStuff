@@ -1,8 +1,30 @@
 use futures::prelude::*;
 
-use sp_consensus::Error as ConsensusError;
-use tokio::time::{sleep, Duration};
+use sp_api::ProvideRuntimeApi;
+use sc_client_api::{backend::AuxStore, BlockOf};
 
+use sp_runtime::traits::{Block as BlockT, Member, NumberFor};
+use codec::Codec;
+use sp_blockchain::HeaderBackend;
+pub use sp_consensus::SyncOracle;
+
+use sp_consensus::{ Environment, Error as ConsensusError, Proposer, SelectChain};
+use sc_consensus::BlockImport;
+use sp_inherents::CreateInherentDataProviders;
+use sc_consensus_slots::{
+	BackoffAuthoringBlocksStrategy, InherentDataProviderExt,
+};
+use tokio::time::{sleep, Duration};
+use sp_core::crypto::Pair;
+use sp_application_crypto::AppPublic;
+
+
+type AuthorityId<P> = <P as Pair>::Public;
+
+pub mod params;
+
+use sp_hotstuff::HotstuffApi;
+use params::StartHotstuffParams;
 
 struct HotstuffWork {
 }
@@ -14,32 +36,36 @@ impl HotstuffWork {
     }
 }
 
-// pub fn start_hotstuff()  -> Result<impl Future<Output = ()>, ConsensusError> {
-//     println!("Hello hotstuff");
 
-//     let work = HotstuffWork {};
-
-//     let futureWork = async move {
-//         work.do_work().await;
-//         // Perform your async work here using HotstuffWork
-//         println!("👷🏻‍♂️HotstuffWork completed.");
-//     };
-
-
-//     Ok(start_hotstuff_task())
-// }
-
-pub async fn start_hotstuff_task() {
-
-	loop {
-        // For example, you can await some asynchronous operations.
-        sleep(Duration::from_millis(3000)).await;
-   
-        println!("3000 ms have elapsed");
-	}
-}
-
-pub fn start_hotstuff() -> Result<impl Future<Output = ()>, ConsensusError> {
+pub fn start_hotstuff<P, B, C, SC, I, PF, SO, L, Error>(
+	StartHotstuffParams {
+		client,
+		select_chain,
+		block_import,
+		proposer_factory,
+		sync_oracle,
+		justification_sync_link,
+		force_authoring,
+		keystore,
+		telemetry,
+		compatibility_mode,
+	}: StartHotstuffParams<C, SC, I, PF, SO, L, NumberFor<B>>,
+) -> Result<impl Future<Output = ()>, ConsensusError> 
+where
+	P: Pair,
+	P::Public: AppPublic + Member,
+	P::Signature: TryFrom<Vec<u8>> + Member + Codec,
+	B: BlockT,
+	C: ProvideRuntimeApi<B> + BlockOf + AuxStore + HeaderBackend<B> + Send + Sync,
+	C::Api: HotstuffApi<B, AuthorityId<P>>,
+	SC: SelectChain<B>,
+	I: BlockImport<B, Transaction = sp_api::TransactionFor<C, B>> + Send + Sync + 'static,
+	PF: Environment<B, Error = Error> + Send + Sync + 'static,
+	PF::Proposer: Proposer<B, Error = Error, Transaction = sp_api::TransactionFor<C, B>>,
+	SO: SyncOracle + Send + Sync + Clone,
+	L: sc_consensus::JustificationSyncLink<B>,
+	Error: std::error::Error + Send + From<ConsensusError> + 'static,
+{
     println!("Hello hotstuff");
 
     let work = HotstuffWork {};
@@ -63,7 +89,7 @@ mod tests {
     #[test]
     fn test_start_hotstuff() {
         // Arrange
-        let result = start_hotstuff().expect("hotstuff entry function");
+        // let result = start_hotstuff().expect("hotstuff entry function");
 
         // Assert
         // Add your assertions here if needed

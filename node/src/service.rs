@@ -10,7 +10,12 @@ use sc_service::{error::Error as ServiceError, Configuration, TaskManager, WarpS
 use sc_telemetry::{Telemetry, TelemetryWorker};
 use sc_transaction_pool_api::OffchainTransactionPoolFactory;
 use sp_consensus_aura::sr25519::AuthorityPair as AuraPair;
+use sp_hotstuff::sr25519::AuthorityPair as HotstuffPair;
+
+
 use std::{sync::Arc, time::Duration};
+
+use hotstuff::params::StartHotstuffParams;
 
 // Our native executor instance.
 pub struct ExecutorDispatch;
@@ -326,7 +331,29 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 		);
 	}
 
-	let hotstuff_work = hotstuff::start_hotstuff()?;
+	let proposer_factory = sc_basic_authorship::ProposerFactory::new(
+		task_manager.spawn_handle(),
+		client.clone(),
+		transaction_pool.clone(),
+		prometheus_registry.as_ref(),
+		telemetry.as_ref().map(|x| x.handle()),
+	);
+
+	// start hotstuff
+	let hotstuff_work = hotstuff::start_hotstuff::<HotstuffPair, _, _, _, _, _, _, _, _>(
+		StartHotstuffParams {
+			client,
+			select_chain,
+			block_import,
+			proposer_factory,
+			force_authoring,
+			keystore: keystore_container.keystore(),
+			sync_oracle: sync_service.clone(),
+			justification_sync_link: sync_service.clone(),
+			telemetry: telemetry.as_ref().map(|x| x.handle()),
+			compatibility_mode: Default::default(),
+		},
+	)?;
 
 	task_manager
 	.spawn_essential_handle()
