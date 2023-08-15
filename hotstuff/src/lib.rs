@@ -10,10 +10,8 @@ pub use sp_consensus::SyncOracle;
 
 use sp_consensus::{ Environment, Error as ConsensusError, Proposer, SelectChain};
 use sc_consensus::BlockImport;
-use sp_inherents::CreateInherentDataProviders;
-use sc_consensus_slots::{
-	BackoffAuthoringBlocksStrategy, InherentDataProviderExt,
-};
+
+
 use tokio::time::{sleep, Duration};
 use sp_core::crypto::Pair;
 use sp_application_crypto::AppPublic;
@@ -39,16 +37,16 @@ impl HotstuffWork {
 
 pub fn start_hotstuff<P, B, C, SC, I, PF, SO, L, Error>(
 	StartHotstuffParams {
-		client,
-		select_chain,
-		block_import,
-		proposer_factory,
-		sync_oracle,
-		justification_sync_link,
-		force_authoring,
-		keystore,
-		telemetry,
-		compatibility_mode,
+		client: _,
+		select_chain: _,
+		block_import: _,
+		proposer_factory: _,
+		sync_oracle: _,
+		justification_sync_link: _,
+		force_authoring: _,
+		keystore: _,
+		telemetry: _,
+		compatibility_mode: _,
 	}: StartHotstuffParams<C, SC, I, PF, SO, L, NumberFor<B>>,
 ) -> Result<impl Future<Output = ()>, ConsensusError> 
 where
