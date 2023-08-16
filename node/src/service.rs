@@ -339,21 +339,21 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 		telemetry.as_ref().map(|x| x.handle()),
 	);
 
+	let hotstuff_params = StartHotstuffParams {
+		client,
+		select_chain,
+		block_import,
+		proposer_factory,
+		force_authoring,
+		keystore: keystore_container.keystore(),
+		sync_oracle: sync_service.clone(),
+		justification_sync_link: sync_service.clone(),
+		telemetry: telemetry.as_ref().map(|x| x.handle()),
+		compatibility_mode: Default::default(),
+	};
+
 	// start hotstuff
-	let hotstuff_work = hotstuff::start_hotstuff::<HotstuffPair, _, _, _, _, _, _, _, _>(
-		StartHotstuffParams {
-			client,
-			select_chain,
-			block_import,
-			proposer_factory,
-			force_authoring,
-			keystore: keystore_container.keystore(),
-			sync_oracle: sync_service.clone(),
-			justification_sync_link: sync_service.clone(),
-			telemetry: telemetry.as_ref().map(|x| x.handle()),
-			compatibility_mode: Default::default(),
-		},
-	)?;
+	let hotstuff_work = hotstuff::start_hotstuff::<HotstuffPair, _, _, _, _, _, _, _, _>(hotstuff_params)?;
 
 	task_manager
 	.spawn_essential_handle()

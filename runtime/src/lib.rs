@@ -20,6 +20,7 @@ use sp_runtime::{
 	transaction_validity::{TransactionSource, TransactionValidity},
 	ApplyExtrinsicResult, MultiSignature,
 };
+
 use sp_std::prelude::*;
 #[cfg(feature = "std")]
 use sp_version::NativeVersion;
@@ -50,6 +51,7 @@ pub use sp_runtime::{Perbill, Permill};
 
 /// Import the template pallet.
 pub use pallet_template;
+pub use pallet_hotstuff;
 
 /// An index to a block.
 pub type BlockNumber = u32;
@@ -282,7 +284,11 @@ impl pallet_template::Config for Runtime {
 impl pallet_hotstuff::Config for Runtime {
 	type AuthorityId = HotstuffId;
 
-	type RuntimeEvent = RuntimeEvent;
+	type DisabledValidators = ();
+	type MaxAuthorities = ConstU32<32>;
+	type AllowMultipleBlocksPerSlot = ConstBool<false>;
+
+	// type RuntimeEvent = RuntimeEvent;
 	type WeightInfo = pallet_hotstuff::weights::SubstrateWeight<Runtime>;
 }
 

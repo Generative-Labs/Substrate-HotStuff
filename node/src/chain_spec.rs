@@ -1,8 +1,11 @@
 use node_template_runtime::{
 	AccountId, AuraConfig, BalancesConfig, GrandpaConfig, RuntimeGenesisConfig, Signature,
-	SudoConfig, SystemConfig, WASM_BINARY,
+	SudoConfig, SystemConfig, WASM_BINARY, pallet_hotstuff
 };
+
+
 use sc_service::ChainType;
+use sp_hotstuff::sr25519::AuthorityId as HotStuffId;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_consensus_grandpa::AuthorityId as GrandpaId;
 use sp_core::{sr25519, Pair, Public};
@@ -36,6 +39,11 @@ pub fn authority_keys_from_seed(s: &str) -> (AuraId, GrandpaId) {
 	(get_from_seed::<AuraId>(s), get_from_seed::<GrandpaId>(s))
 }
 
+/// Generate an Hotstuff authority key.
+pub fn hotstuff_authority_keys_from_seed(s: &str) -> (HotStuffId, GrandpaId) {
+	(get_from_seed::<HotStuffId>(s), get_from_seed::<GrandpaId>(s))
+}
+
 pub fn development_config() -> Result<ChainSpec, String> {
 	let wasm_binary = WASM_BINARY.ok_or_else(|| "Development wasm not available".to_string())?;
 
@@ -50,6 +58,7 @@ pub fn development_config() -> Result<ChainSpec, String> {
 				wasm_binary,
 				// Initial PoA authorities
 				vec![authority_keys_from_seed("Alice")],
+				vec![hotstuff_authority_keys_from_seed("Alice")],
 				// Sudo account
 				get_account_id_from_seed::<sr25519::Public>("Alice"),
 				// Pre-funded accounts
@@ -90,6 +99,7 @@ pub fn local_testnet_config() -> Result<ChainSpec, String> {
 				wasm_binary,
 				// Initial PoA authorities
 				vec![authority_keys_from_seed("Alice"), authority_keys_from_seed("Bob")],
+				vec![hotstuff_authority_keys_from_seed("Alice"), hotstuff_authority_keys_from_seed("Bob")],
 				// Sudo account
 				get_account_id_from_seed::<sr25519::Public>("Alice"),
 				// Pre-funded accounts
@@ -128,6 +138,7 @@ pub fn local_testnet_config() -> Result<ChainSpec, String> {
 fn testnet_genesis(
 	wasm_binary: &[u8],
 	initial_authorities: Vec<(AuraId, GrandpaId)>,
+	initial_hotstuff_authorities: Vec<(HotStuffId, GrandpaId)>,
 	root_key: AccountId,
 	endowed_accounts: Vec<AccountId>,
 	_enable_println: bool,
@@ -154,5 +165,8 @@ fn testnet_genesis(
 			key: Some(root_key),
 		},
 		transaction_payment: Default::default(),
+		hotstuff: pallet_hotstuff::GenesisConfig {
+			authorities: initial_hotstuff_authorities.iter().map(|x| (x.0.clone())).collect(),
+		},
 	}
 }

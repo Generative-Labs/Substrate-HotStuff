@@ -26,12 +26,31 @@ pub mod sr25519 {
 }
 
 
+pub mod ed25519 {
+	mod app_ed25519 {
+		use sp_application_crypto::{app_crypto, ed25519, key_types::AURA};
+		app_crypto!(ed25519, AURA);
+	}
+
+	sp_application_crypto::with_pair! {
+		/// An Aura authority keypair using Ed25519 as its crypto.
+		pub type AuthorityPair = app_ed25519::Pair;
+	}
+
+	/// An Aura authority signature using Ed25519 as its crypto.
+	pub type AuthoritySignature = app_ed25519::Signature;
+
+	/// An Aura authority identifier using Ed25519 as its crypto.
+	pub type AuthorityId = app_ed25519::Public;
+}
+
+
 pub use sp_consensus_slots::{Slot, SlotDuration};
 
 /// The index of an authority.
 pub type AuthorityIndex = u32;
 
-/// An consensus log item for Aura.
+/// An consensus log item for Hotstuff.
 #[derive(Decode, Encode)]
 pub enum ConsensusLog<AuthorityId: Codec> {
 	/// The authorities have changed.
@@ -44,8 +63,12 @@ pub enum ConsensusLog<AuthorityId: Codec> {
 
 
 sp_api::decl_runtime_apis! {
-	/// API necessary for block authorship with aura.
+	/// API necessary for block authorship with hotstuff.
 	pub trait HotstuffApi<AuthorityId: Codec> {
+		/// Returns the slot duration for Hotstuff.
+		// ///
+		// /// Currently, only the value provided by this type at genesis will be used.
+		// fn slot_duration() -> SlotDuration;
 
 		/// Return the current set of authorities.
 		fn authorities() -> Vec<AuthorityId>;

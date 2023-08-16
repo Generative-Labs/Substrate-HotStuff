@@ -59,8 +59,15 @@ pub struct StartHotstuffParams<C, SC, I, PF, SO, L, N> {
 
 	/// Telemetry instance used to report telemetry metrics.
 	pub telemetry: Option<TelemetryHandle>,
-	/// Compatibility mode that should be used.
-	///
-	/// If in doubt, use `Default::default()`.
+
+
+	// If in doubt, use `Default::default()`.
 	pub compatibility_mode: CompatibilityMode<N>,
+}
+
+
+impl<N> Default for CompatibilityMode<N> {
+	fn default() -> Self {
+		Self::None
+	}
 }
