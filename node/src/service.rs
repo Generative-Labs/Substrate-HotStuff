@@ -239,6 +239,7 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 		telemetry: telemetry.as_mut(),
 	})?;
 
+
 	if role.is_authority() {
 		let proposer_factory = sc_basic_authorship::ProposerFactory::new(
 			task_manager.spawn_handle(),
@@ -248,43 +249,64 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 			telemetry.as_ref().map(|x| x.handle()),
 		);
 
-		let slot_duration = sc_consensus_aura::slot_duration(&*client)?;
+		// let slot_duration = sc_consensus_aura::slot_duration(&*client)?;
 
-		let aura = sc_consensus_aura::start_aura::<AuraPair, _, _, _, _, _, _, _, _, _, _>(
-			StartAuraParams {
-				slot_duration,
-				client,
-				select_chain,
-				block_import,
-				proposer_factory,
-				create_inherent_data_providers: move |_, ()| async move {
-					let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
+		// let aura = sc_consensus_aura::start_aura::<AuraPair, _, _, _, _, _, _, _, _, _, _>(
+		// 	StartAuraParams {
+		// 		slot_duration,
+		// 		client,
+		// 		select_chain,
+		// 		block_import,
+		// 		proposer_factory,
+		// 		create_inherent_data_providers: move |_, ()| async move {
+		// 			let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
 
-					let slot =
-						sp_consensus_aura::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
-							*timestamp,
-							slot_duration,
-						);
+		// 			let slot =
+		// 				sp_consensus_aura::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
+		// 					*timestamp,
+		// 					slot_duration,
+		// 				);
 
-					Ok((slot, timestamp))
-				},
-				force_authoring,
-				backoff_authoring_blocks,
-				keystore: keystore_container.keystore(),
-				sync_oracle: sync_service.clone(),
-				justification_sync_link: sync_service.clone(),
-				block_proposal_slot_portion: SlotProportion::new(2f32 / 3f32),
-				max_block_proposal_slot_portion: None,
-				telemetry: telemetry.as_ref().map(|x| x.handle()),
-				compatibility_mode: Default::default(),
-			},
-		)?;
+		// 			Ok((slot, timestamp))
+		// 		},
+		// 		force_authoring,
+		// 		backoff_authoring_blocks,
+		// 		keystore: keystore_container.keystore(),
+		// 		sync_oracle: sync_service.clone(),
+		// 		justification_sync_link: sync_service.clone(),
+		// 		block_proposal_slot_portion: SlotProportion::new(2f32 / 3f32),
+		// 		max_block_proposal_slot_portion: None,
+		// 		telemetry: telemetry.as_ref().map(|x| x.handle()),
+		// 		compatibility_mode: Default::default(),
+		// 	},
+		// )?;
 
-		// the AURA authoring task is considered essential, i.e. if it
-		// fails we take down the service with it.
+		// // the AURA authoring task is considered essential, i.e. if it
+		// // fails we take down the service with it.
+		// task_manager
+		// 	.spawn_essential_handle()
+		// 	.spawn_blocking("aura", Some("block-authoring"), aura);
+
+
+
+		// start hotstuff
+		let hotstuff_work = hotstuff::start_hotstuff::<HotstuffPair, _, _, _, _, _, _, _, _>(StartHotstuffParams {
+			client,
+			select_chain,
+			block_import,
+			proposer_factory,
+			force_authoring,
+			keystore: keystore_container.keystore(),
+			sync_oracle: sync_service.clone(),
+			justification_sync_link: sync_service.clone(),
+			telemetry: telemetry.as_ref().map(|x| x.handle()),
+			compatibility_mode: Default::default(),
+		})?;
+
 		task_manager
-			.spawn_essential_handle()
-			.spawn_blocking("aura", Some("block-authoring"), aura);
+		.spawn_essential_handle()
+		.spawn_blocking("hotstuff-entry", Some("hotstuff"), hotstuff_work);
+
 	}
 
 	if enable_grandpa {
@@ -330,34 +352,6 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 			sc_consensus_grandpa::run_grandpa_voter(grandpa_config)?,
 		);
 	}
-
-	let proposer_factory = sc_basic_authorship::ProposerFactory::new(
-		task_manager.spawn_handle(),
-		client.clone(),
-		transaction_pool.clone(),
-		prometheus_registry.as_ref(),
-		telemetry.as_ref().map(|x| x.handle()),
-	);
-
-	let hotstuff_params = StartHotstuffParams {
-		client,
-		select_chain,
-		block_import,
-		proposer_factory,
-		force_authoring,
-		keystore: keystore_container.keystore(),
-		sync_oracle: sync_service.clone(),
-		justification_sync_link: sync_service.clone(),
-		telemetry: telemetry.as_ref().map(|x| x.handle()),
-		compatibility_mode: Default::default(),
-	};
-
-	// start hotstuff
-	let hotstuff_work = hotstuff::start_hotstuff::<HotstuffPair, _, _, _, _, _, _, _, _>(hotstuff_params)?;
-
-	task_manager
-	.spawn_essential_handle()
-	.spawn_blocking("hotstuff-entry", Some("hotstuff"), hotstuff_work);
 
 	network_starter.start_network();
 	Ok(task_manager)
