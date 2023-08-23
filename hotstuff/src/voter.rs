@@ -1,40 +1,69 @@
 
 
-pub struct ConsensusMessage {
+use sp_core::H256;
+// use sp_consensus::Proposer;
+use std::marker::PhantomData;
 
+mod app {
+	use sp_application_crypto::{app_crypto, ed25519, KeyTypeId};
+
+    pub const HOTSTUFF: KeyTypeId = KeyTypeId(*b"hots");
+
+	app_crypto!(ed25519, HOTSTUFF);
 }
 
-pub struct VoteInfo {
+/// Identity of a hotstuff authority.
+// pub type AuthorityId = app::Public;
 
+use sp_core::crypto::Pair;
+pub type AuthorityId<P> = <P as Pair>::Public;
+
+
+pub struct VoteInfo<P: Pair> {
+    pub block_hash: H256,
+    pub round_number: u64,
+    pub voter: AuthorityId<P>,
+}
+
+pub struct ConsensusMessage {
+    pub round_number: u64,
+    pub parent_block_hash: H256,
+    pub block_hash: H256,
+    // pub proposal: Proposer::Proposal,
 }
 
 // hotstuff leader trait
-pub trait HotstuffLeader {
+pub trait HotstuffLeader<P: Pair> {
     fn broadcast_message(&self, consensus_msg: &ConsensusMessage);
     fn prepare_message(&self, consensus_msg: &ConsensusMessage);
     fn precommit_message(&self, consensus_msg: &ConsensusMessage);
     fn commit_message(&self, consensus_msg: &ConsensusMessage);
     fn decide_message(&self, consensus_msg: &ConsensusMessage);
-    fn vote_handler(&self, vote: &VoteInfo);   // As a leader handler vote from other validators
-    fn validate_vote(&self, vote:&VoteInfo);    // validate vote from validator
+    fn vote_handler(&self, vote: &VoteInfo<P>);   // As a leader handler vote from other validators
+    fn validate_vote(&self, vote: &VoteInfo<P>);    // validate vote from validator
 }
 
 // hotstuff validator trait
-pub trait HotstuffValidator {
-    fn send_vote(&self, vote: &VoteInfo);
+pub trait HotstuffValidator<P: Pair> {
+    fn send_vote(&self, vote: &VoteInfo<P>);
 
     // As a validator process consensus message gossip from leader
     fn process_consensus_message(&self, consensus_msg: &ConsensusMessage);
 
     // As a validator; Validate  consensus message gossip from leader
-    fn validate_consensus_message(&self, consensus_msg: &ConsensusMessage);
+    fn validate_consensus_message(&self, consensus_msg: &ConsensusMessage) -> bool;
 }
 
-pub trait HotstuffVoteWork: HotstuffLeader + HotstuffValidator {}
+pub trait HotstuffVoteWork<P: Pair>: HotstuffLeader<P> + HotstuffValidator<P> {}
 
-pub struct HotstuffVoter;
+pub struct HotstuffVoter<P: Pair> {
 
-impl HotstuffLeader for HotstuffVoter {
+    pub _phantom_data: PhantomData<P>,
+
+}
+
+impl<P: Pair> HotstuffLeader<P> for HotstuffVoter<P> {
+
     fn broadcast_message(&self, _consensus_msg: &ConsensusMessage) {
         unimplemented!();
     }
@@ -50,28 +79,28 @@ impl HotstuffLeader for HotstuffVoter {
     fn decide_message(&self, _consensus_msg: &ConsensusMessage) {
         unimplemented!();
     }
-    fn vote_handler(&self, _vote: &VoteInfo) {
+    fn vote_handler(&self, _vote: &VoteInfo<P>) {
         // TODO
     }
-    fn validate_vote(&self, _vote:&VoteInfo) {
+    fn validate_vote(&self, _vote:&VoteInfo<P>) {
         unimplemented!();
     }
 }
 
+/// Hotstuff validator trait implementation
+impl<P: Pair> HotstuffValidator<P> for HotstuffVoter<P> {
 
-impl HotstuffValidator for HotstuffVoter {
-    fn send_vote(&self, _vote: &VoteInfo) {
+    fn send_vote(&self, _vote: &VoteInfo<P>) {
         unimplemented!();
     }
 
     // As a validator process consensus message gossip from leader
     fn process_consensus_message(&self, _consensus_msg: &ConsensusMessage) {
         unimplemented!();
-
     }
 
     // As a validator; Validate  consensus message gossip from leader
-    fn validate_consensus_message(&self, _consensus_msg: &ConsensusMessage) {
-        unimplemented!();
+    fn validate_consensus_message(&self, _consensus_msg: &ConsensusMessage) -> bool {
+        true
     }
 }

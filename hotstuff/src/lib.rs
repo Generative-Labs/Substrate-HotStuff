@@ -16,13 +16,13 @@ use tokio::time::{sleep, Duration};
 use sp_core::crypto::Pair;
 use sp_application_crypto::AppPublic;
 
-
-type AuthorityId<P> = <P as Pair>::Public;
-
 pub mod params;
+use sp_hotstuff;
 
 use sp_hotstuff::HotstuffApi;
 use params::StartHotstuffParams;
+
+type AuthorityId<P> = <P as Pair>::Public;
 
 struct HotstuffWork {
 }
@@ -85,7 +85,14 @@ mod voter;
 #[cfg(test)]
 mod tests {
 
-	use crate::voter::{HotstuffVoter, HotstuffLeader, VoteInfo};
+	use sp_core::H256;
+
+	use std::marker::PhantomData;
+
+	use sp_application_crypto::Pair;
+	use sp_application_crypto::ed25519::AppPair;
+
+	use crate::voter::{HotstuffVoter, HotstuffLeader, VoteInfo, HotstuffValidator, ConsensusMessage, AuthorityId};
 
     #[test]
     fn test_start_hotstuff() {
@@ -98,11 +105,47 @@ mod tests {
     }
 
 	#[test]
-	fn test_hotstuff_voter() {
-		let voter = HotstuffVoter{};
+	fn test_hotstuff_vote_handler() {
+		let key_pair = AppPair::from_seed(&[1; 32]);
 
-		let vote = VoteInfo{};
-		voter.vote_handler(&vote);
+		let voter_id = key_pair.public();
+
+		let vote_info: VoteInfo<AppPair> = VoteInfo{
+			round_number: 1,
+			block_hash: H256::from_low_u64_be(100_000),
+			voter: voter_id,
+		};
+
+		let hotstuff_voter: HotstuffVoter<AppPair> = HotstuffVoter{
+			_phantom_data: PhantomData,
+		};
+
+		hotstuff_voter.vote_handler(&vote_info);
+	}
+
+	#[test]
+	fn test_hotstuff_validate_consensus_message() {
+		let key_pair = AppPair::from_seed(&[1; 32]);
+
+		let voter_id = key_pair.public();
+
+		let vote_info: VoteInfo<AppPair> = VoteInfo{
+			round_number: 1,
+			block_hash: H256::from_low_u64_be(100_000),
+			voter: voter_id,
+		};
+
+		let hotstuff_voter: HotstuffVoter<AppPair> = HotstuffVoter{
+			_phantom_data: PhantomData,
+		};
+
+		let consensus_msg: ConsensusMessage = ConsensusMessage{
+			round_number: 1,
+			parent_block_hash: H256::from_low_u64_be(100_000),
+			block_hash: H256::from_low_u64_be(100_000),
+		};
+		let is_valid = hotstuff_voter.validate_consensus_message(&consensus_msg);
+		assert_eq!(true, is_valid);
 	}
 
 }

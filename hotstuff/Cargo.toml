@@ -10,6 +10,8 @@ futures = "0.3.21"
 tokio = { version = "1.22.0", features = ["rt", "time", "macros", "sync"] }
 codec = { package = "parity-scale-codec", version = "3.6.1", default-features = false }
 
+sc-basic-authorship = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
+
 sp-consensus = { version = "0.10.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 sp-api = { version = "4.0.0-dev",  git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 sp-runtime = { version = "24.0.0",  git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
@@ -24,6 +26,9 @@ sp-inherents = { version = "4.0.0-dev", git = "https://github.com/paritytech/sub
 sc-consensus-slots = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 sp-hotstuff = { path="../primitives/hotstuff" }
 
+libp2p-identity = { version = "0.2.0", features = ["peerid", "ed25519"]}
+scale-info = { version = "2.5.0", default-features = false, features = ["derive"] }
+sp-keyring = { version = "24.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 
 [features]
 default = ["std"]
@@ -33,5 +38,7 @@ std = [
 	"sp-application-crypto/std",
 	"sp-inherents/std",
 	"sp-runtime/std",
+
+	"scale-info/std",
 ]
 
