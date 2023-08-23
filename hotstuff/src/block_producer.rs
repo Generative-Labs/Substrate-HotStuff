@@ -11,6 +11,7 @@ use sp_core::traits::SpawnNamed;
 use sp_inherents::InherentData;
 use sp_runtime::traits::{Block as BlockT, Hash as HashT, Header as HeaderT};
 use std::{marker::PhantomData, pin::Pin, sync::Arc, time};
+use sp_consensus::ProposerFactory;
 
 /// The BlockProducer struct responsible for generating blocks.
 pub struct BlockProducer<A, B, C, PR> {
