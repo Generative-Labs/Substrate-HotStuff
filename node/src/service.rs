@@ -3,7 +3,7 @@
 use futures::FutureExt;
 use node_template_runtime::{self, opaque::Block, RuntimeApi};
 use sc_client_api::{Backend, BlockBackend};
-use sc_consensus_aura::{ImportQueueParams, SlotProportion, StartAuraParams};
+use sc_consensus_aura::ImportQueueParams;
 use sc_consensus_grandpa::SharedVoterState;
 pub use sc_executor::NativeElseWasmExecutor;
 use sc_service::{error::Error as ServiceError, Configuration, TaskManager, WarpSyncParams};
@@ -208,7 +208,7 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 
 	let role = config.role.clone();
 	let force_authoring = config.force_authoring;
-	let backoff_authoring_blocks: Option<()> = None;
+	// let backoff_authoring_blocks: Option<()> = None;
 	let name = config.network.node_name.clone();
 	let enable_grandpa = !config.disable_grandpa;
 	let prometheus_registry = config.prometheus_registry().cloned();
@@ -289,7 +289,7 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 
 
 
-		// start hotstuff
+		// // start hotstuff
 		let hotstuff_work = hotstuff::start_hotstuff::<HotstuffPair, _, _, _, _, _, _, _, _>(StartHotstuffParams {
 			client,
 			select_chain,

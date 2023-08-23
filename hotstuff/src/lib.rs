@@ -79,10 +79,13 @@ where
     Ok(future_work)
 }
 
+mod voter;
+
 
 #[cfg(test)]
 mod tests {
-    
+
+	use crate::voter::{HotstuffVoter, HotstuffLeader, VoteInfo};
 
     #[test]
     fn test_start_hotstuff() {
@@ -93,4 +96,13 @@ mod tests {
         // Add your assertions here if needed
 
     }
+
+	#[test]
+	fn test_hotstuff_voter() {
+		let voter = HotstuffVoter{};
+
+		let vote = VoteInfo{};
+		voter.vote_handler(&vote);
+	}
+
 }
