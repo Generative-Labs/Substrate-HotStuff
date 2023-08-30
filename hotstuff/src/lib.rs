@@ -139,8 +139,9 @@ mod tests {
 			round_number: 1,
 			block_hash: H256::from_low_u64_be(100_000),
 			voter: voter_id,
-			signature: signature,
+			signature: signature.clone(),
 		};
+		assert!(signature.verify(&digest, &_public_key).is_ok());
 
 		let hotstuff_voter: HotstuffVoter<AppPair> = HotstuffVoter{
 			_phantom_data: PhantomData,
@@ -168,8 +169,10 @@ mod tests {
 			round_number: 1,
 			block_hash: H256::from_low_u64_be(100_000),
 			voter: voter_id,
-			signature: signature,
+			signature: signature.clone(),
 		};
+
+		assert!(signature.verify(&digest, &_public_key).is_ok());
 
 		let hotstuff_voter: HotstuffVoter<AppPair> = HotstuffVoter{
 			_phantom_data: PhantomData,
