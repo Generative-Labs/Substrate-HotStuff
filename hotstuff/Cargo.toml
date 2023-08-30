@@ -32,15 +32,15 @@ scale-info = { version = "2.5.0", default-features = false, features = ["derive"
 sp-keyring = { version = "24.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 ed25519-dalek = { version = "1.0.1", features = ["batch"] }
 
-[features]
-default = ["std"]
-std = [
-	"codec/std",
-	"sp-api/std",
-	"sp-application-crypto/std",
-	"sp-inherents/std",
-	"sp-runtime/std",
+# [features]
+# default = ["std"]
+# std = [
+# 	"codec/std",
+# 	"sp-api/std",
+# 	"sp-application-crypto/std",
+# 	"sp-inherents/std",
+# 	"sp-runtime/std",
 
-	"scale-info/std",
-]
+# 	"scale-info/std",
+# ]
 

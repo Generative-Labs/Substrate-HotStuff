@@ -95,7 +95,12 @@ mod tests {
 	use sp_application_crypto::Pair;
 	use sp_application_crypto::ed25519::AppPair;
 
-	use crate::voter::{HotstuffVoter, HotstuffLeader, VoteMessage, HotstuffValidator, ConsensusMessage};
+	use crate::voter::{
+		HotstuffVoter,
+		leader::HotstuffLeader,validator::HotstuffValidator,
+		message::VoteMessage,  message::ConsensusMessage
+	};
+
 	pub trait Hash {
 		fn digest(&self) -> Digest;
 	}
