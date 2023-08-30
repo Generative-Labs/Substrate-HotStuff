@@ -9,7 +9,7 @@ include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 use pallet_grandpa::AuthorityId as GrandpaId;
 use sp_api::impl_runtime_apis;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
-use sp_hotstuff::sr25519::AuthorityId as HotstuffId;
+use sp_consensus_hotstuff::sr25519::AuthorityId as HotstuffId;
 
 use sp_core::{crypto::KeyTypeId, OpaqueMetadata};
 use sp_runtime::{
@@ -434,7 +434,7 @@ impl_runtime_apis! {
 		}
 	}
 
-	impl sp_hotstuff::HotstuffApi<Block, HotstuffId> for Runtime {
+	impl sp_consensus_hotstuff::HotstuffApi<Block, HotstuffId> for Runtime {
 
 		fn authorities() -> Vec<HotstuffId> {
 			Hotstuff::authorities().into_inner()

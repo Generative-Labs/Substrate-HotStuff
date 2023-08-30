@@ -24,7 +24,7 @@ sp-blockchain = { version = "4.0.0-dev", git = "https://github.com/paritytech/su
 sc-consensus = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 sp-inherents = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 sc-consensus-slots = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
-sp-hotstuff = { path="../primitives/hotstuff" }
+sp-consensus-hotstuff = { path="../primitives/consensus/hotstuff" }
 
 libp2p-identity = { version = "0.2.0", features = ["peerid", "ed25519"]}
 scale-info = { version = "2.5.0", default-features = false, features = ["derive"] }

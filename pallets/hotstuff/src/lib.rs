@@ -44,7 +44,7 @@ use frame_support::{
 	traits::{DisabledValidators, FindAuthor, Get, OnTimestampSet, OneSessionHandler},
 	BoundedSlice, BoundedVec, ConsensusEngineId, Parameter,
 };
-use sp_hotstuff::{AuthorityIndex, ConsensusLog, Slot, HOTSTUFF_ENGINE_ID};
+use sp_consensus_hotstuff::{AuthorityIndex, ConsensusLog, Slot, HOTSTUFF_ENGINE_ID};
 use sp_runtime::{
 	generic::DigestItem,
 	traits::{IsMember, Member, SaturatedConversion, Saturating, Zero},

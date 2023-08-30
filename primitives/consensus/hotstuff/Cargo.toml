@@ -1,5 +1,5 @@
 [package]
-name = "sp-hotstuff"
+name = "sp-consensus-hotstuff"
 version = "0.1.0"
 edition = "2021"
 

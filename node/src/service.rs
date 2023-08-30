@@ -10,7 +10,7 @@ use sc_service::{error::Error as ServiceError, Configuration, TaskManager, WarpS
 use sc_telemetry::{Telemetry, TelemetryWorker};
 use sc_transaction_pool_api::OffchainTransactionPoolFactory;
 use sp_consensus_aura::sr25519::AuthorityPair as AuraPair;
-use sp_hotstuff::sr25519::AuthorityPair as HotstuffPair;
+use sp_consensus_hotstuff::sr25519::AuthorityPair as HotstuffPair;
 
 
 use std::{sync::Arc, time::Duration};

@@ -17,9 +17,9 @@ use sp_core::crypto::Pair;
 use sp_application_crypto::AppPublic;
 
 pub mod params;
-use sp_hotstuff;
+use sp_consensus_hotstuff;
 
-use sp_hotstuff::HotstuffApi;
+use sp_consensus_hotstuff::HotstuffApi;
 use params::StartHotstuffParams;
 
 type AuthorityId<P> = <P as Pair>::Public;
@@ -92,7 +92,7 @@ mod tests {
 	use sp_application_crypto::Pair;
 	use sp_application_crypto::ed25519::AppPair;
 
-	use crate::voter::{HotstuffVoter, HotstuffLeader, VoteInfo, HotstuffValidator, ConsensusMessage, AuthorityId};
+	use crate::voter::{HotstuffVoter, HotstuffLeader, VoteInfo, HotstuffValidator, ConsensusMessage};
 
     #[test]
     fn test_start_hotstuff() {
@@ -129,7 +129,7 @@ mod tests {
 
 		let voter_id = key_pair.public();
 
-		let vote_info: VoteInfo<AppPair> = VoteInfo{
+		let _vote_info: VoteInfo<AppPair> = VoteInfo{
 			round_number: 1,
 			block_hash: H256::from_low_u64_be(100_000),
 			voter: voter_id,

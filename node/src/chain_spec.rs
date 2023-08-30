@@ -5,7 +5,7 @@ use node_template_runtime::{
 
 
 use sc_service::ChainType;
-use sp_hotstuff::sr25519::AuthorityId as HotStuffId;
+use sp_consensus_hotstuff::sr25519::AuthorityId as HotStuffId;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_consensus_grandpa::AuthorityId as GrandpaId;
 use sp_core::{sr25519, Pair, Public};
