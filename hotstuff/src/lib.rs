@@ -84,6 +84,9 @@ mod voter;
 
 #[cfg(test)]
 mod tests {
+	use crypto::Digest;
+	use ed25519_dalek::Digest as _;
+	use ed25519_dalek::Sha512;
 
 	use sp_core::H256;
 
@@ -93,6 +96,15 @@ mod tests {
 	use sp_application_crypto::ed25519::AppPair;
 
 	use crate::voter::{HotstuffVoter, HotstuffLeader, VoteMessage, HotstuffValidator, ConsensusMessage};
+	pub trait Hash {
+		fn digest(&self) -> Digest;
+	}
+
+	impl Hash for &[u8] {
+		fn digest(&self) -> Digest {
+			Digest(Sha512::digest(self).as_slice()[..32].try_into().unwrap())
+		}
+	}
 
     #[test]
     fn test_start_hotstuff() {
@@ -101,8 +113,13 @@ mod tests {
 
         // Assert
         // Add your assertions here if needed
-
     }
+
+	fn get_keypair() -> (crypto::PublicKey, crypto::SecretKey) {
+		// Get a keypair.
+		let (public_key, secret_key) = crypto::keys().pop().unwrap();
+		(public_key, secret_key)
+	}
 
 	#[test]
 	fn test_hotstuff_vote_handler() {
@@ -110,10 +127,19 @@ mod tests {
 
 		let voter_id = key_pair.public();
 
+		// Get a keypair.
+		let (_public_key, secret_key) = get_keypair();
+
+		// Make signature.
+		let message: &[u8] = b"Hello, world!";
+		let digest = message.digest();
+		let signature = crypto::Signature::new(&digest, &secret_key);
+		
 		let vote_info: VoteMessage<AppPair> = VoteMessage{
 			round_number: 1,
 			block_hash: H256::from_low_u64_be(100_000),
 			voter: voter_id,
+			signature: signature,
 		};
 
 		let hotstuff_voter: HotstuffVoter<AppPair> = HotstuffVoter{
@@ -125,14 +151,24 @@ mod tests {
 
 	#[test]
 	fn test_hotstuff_validate_consensus_message() {
+
 		let key_pair = AppPair::from_seed(&[1; 32]);
 
 		let voter_id = key_pair.public();
+
+		// Get a keypair.
+		let (_public_key, secret_key) = get_keypair();
+
+		// Make signature.
+		let message: &[u8] = b"Hello, world!";
+		let digest = message.digest();
+		let signature = crypto::Signature::new(&digest, &secret_key);
 
 		let _vote_info: VoteMessage<AppPair> = VoteMessage{
 			round_number: 1,
 			block_hash: H256::from_low_u64_be(100_000),
 			voter: voter_id,
+			signature: signature,
 		};
 
 		let hotstuff_voter: HotstuffVoter<AppPair> = HotstuffVoter{

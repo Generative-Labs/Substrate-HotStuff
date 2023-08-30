@@ -3,17 +3,10 @@ use sp_core::H256;
 // use sp_consensus::Proposer;
 use std::marker::PhantomData;
 
-mod app {
-	use sp_application_crypto::{app_crypto, ed25519, KeyTypeId};
-
-    pub const HOTSTUFF: KeyTypeId = KeyTypeId(*b"hots");
-
-	app_crypto!(ed25519, HOTSTUFF);
-}
 
 /// Identity of a hotstuff authority.
 // pub type AuthorityId = app::Public;
-
+use crypto;
 use sp_core::crypto::Pair;
 pub type AuthorityId<P> = <P as Pair>::Public;
 
@@ -22,6 +15,7 @@ pub struct VoteMessage<P: Pair> {
     pub block_hash: H256,
     pub round_number: u64,
     pub voter: AuthorityId<P>,
+    pub signature: crypto::Signature,
 }
 
 pub struct ConsensusMessage {
@@ -66,23 +60,30 @@ impl<P: Pair> HotstuffLeader<P> for HotstuffVoter<P> {
     fn broadcast_message(&self, _consensus_msg: &ConsensusMessage) {
         unimplemented!();
     }
+
     fn prepare_message(&self, _consensus_msg: &ConsensusMessage) {
         unimplemented!();
     }
+
     fn precommit_message(&self, _consensus_msg: &ConsensusMessage) {
         unimplemented!();
     }
+
     fn commit_message(&self, _consensus_msg: &ConsensusMessage) {
         unimplemented!();
     }
+
     fn decide_message(&self, _consensus_msg: &ConsensusMessage) {
         unimplemented!();
     }
+
     fn vote_handler(&self, _vote: &VoteMessage<P>) {
-        // TODO
+        // leader handler voting from validators
     }
+
     fn validate_vote(&self, _vote:&VoteMessage<P>) {
-        unimplemented!();
+        // leader validate vote message
+        _vote.block_hash;
     }
 }
 

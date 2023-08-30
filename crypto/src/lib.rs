@@ -10,12 +10,20 @@ use std::convert::{TryFrom, TryInto};
 use std::fmt;
 use tokio::sync::mpsc::{channel, Sender};
 use tokio::sync::oneshot;
+use rand::rngs::StdRng;
+use rand::SeedableRng as _;
+
 
 #[cfg(test)]
 #[path = "tests/crypto_tests.rs"]
 pub mod crypto_tests;
 
 pub type CryptoError = ed25519::Error;
+
+pub fn keys() -> Vec<(PublicKey, SecretKey)> {
+    let mut rng = StdRng::from_seed([0; 32]);
+    (0..4).map(|_| generate_keypair(&mut rng)).collect()
+}
 
 /// Represents a hash digest (32 bytes).
 #[derive(Hash, PartialEq, Default, Eq, Clone, Deserialize, Serialize, Ord, PartialOrd)]
