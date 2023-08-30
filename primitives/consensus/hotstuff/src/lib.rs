@@ -34,11 +34,10 @@ mod app {
 }
 
 
-// sp_application_crypto::with_pair! {
-// 	/// The hotstuff crypto scheme defined via the keypair type.
-// 	pub type AuthorityPair = app::Pair;
-// }
-
+sp_application_crypto::with_pair! {
+	/// The hotstuff crypto scheme defined via the keypair type.
+	pub type AuthorityPair = app::Pair;
+}
 
 
 pub mod sr25519 {
@@ -83,7 +82,7 @@ pub mod ed25519 {
 
 
 // /// Identity of a Hotstuff authority.
-// pub type AuthorityId = app::Public;
+pub type AuthorityId = app::Public;
 
 
 /// Signature for a Hotstuff authority.
@@ -113,7 +112,7 @@ pub type RoundNumber = u64;
 
 
 /// A list of Hotstuff authorities with associated weights.
-// pub type AuthorityList = Vec<(AuthorityId, AuthorityWeight)>;
+pub type AuthorityList = Vec<(AuthorityId, AuthorityWeight)>;
 
 
 /// An consensus log item for Hotstuff.

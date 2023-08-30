@@ -1,0 +1,4 @@
+[package]
+name = "sc-consensus-hotstuff"
+version = "0.1.0"
+edition = "2021"

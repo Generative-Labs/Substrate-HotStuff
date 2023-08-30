@@ -92,7 +92,7 @@ mod tests {
 	use sp_application_crypto::Pair;
 	use sp_application_crypto::ed25519::AppPair;
 
-	use crate::voter::{HotstuffVoter, HotstuffLeader, VoteInfo, HotstuffValidator, ConsensusMessage};
+	use crate::voter::{HotstuffVoter, HotstuffLeader, VoteMessage, HotstuffValidator, ConsensusMessage};
 
     #[test]
     fn test_start_hotstuff() {
@@ -110,7 +110,7 @@ mod tests {
 
 		let voter_id = key_pair.public();
 
-		let vote_info: VoteInfo<AppPair> = VoteInfo{
+		let vote_info: VoteMessage<AppPair> = VoteMessage{
 			round_number: 1,
 			block_hash: H256::from_low_u64_be(100_000),
 			voter: voter_id,
@@ -129,7 +129,7 @@ mod tests {
 
 		let voter_id = key_pair.public();
 
-		let _vote_info: VoteInfo<AppPair> = VoteInfo{
+		let _vote_info: VoteMessage<AppPair> = VoteMessage{
 			round_number: 1,
 			block_hash: H256::from_low_u64_be(100_000),
 			voter: voter_id,

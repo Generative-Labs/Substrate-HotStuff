@@ -1,5 +1,4 @@
 
-
 use sp_core::H256;
 // use sp_consensus::Proposer;
 use std::marker::PhantomData;
@@ -19,7 +18,7 @@ use sp_core::crypto::Pair;
 pub type AuthorityId<P> = <P as Pair>::Public;
 
 
-pub struct VoteInfo<P: Pair> {
+pub struct VoteMessage<P: Pair> {
     pub block_hash: H256,
     pub round_number: u64,
     pub voter: AuthorityId<P>,
@@ -39,13 +38,13 @@ pub trait HotstuffLeader<P: Pair> {
     fn precommit_message(&self, consensus_msg: &ConsensusMessage);
     fn commit_message(&self, consensus_msg: &ConsensusMessage);
     fn decide_message(&self, consensus_msg: &ConsensusMessage);
-    fn vote_handler(&self, vote: &VoteInfo<P>);   // As a leader handler vote from other validators
-    fn validate_vote(&self, vote: &VoteInfo<P>);    // validate vote from validator
+    fn vote_handler(&self, vote: &VoteMessage<P>);   // As a leader handler vote from other validators
+    fn validate_vote(&self, vote: &VoteMessage<P>);    // validate vote from validator
 }
 
 // hotstuff validator trait
 pub trait HotstuffValidator<P: Pair> {
-    fn send_vote(&self, vote: &VoteInfo<P>);
+    fn send_vote(&self, vote: &VoteMessage<P>);
 
     // As a validator process consensus message gossip from leader
     fn process_consensus_message(&self, consensus_msg: &ConsensusMessage);
@@ -79,10 +78,10 @@ impl<P: Pair> HotstuffLeader<P> for HotstuffVoter<P> {
     fn decide_message(&self, _consensus_msg: &ConsensusMessage) {
         unimplemented!();
     }
-    fn vote_handler(&self, _vote: &VoteInfo<P>) {
+    fn vote_handler(&self, _vote: &VoteMessage<P>) {
         // TODO
     }
-    fn validate_vote(&self, _vote:&VoteInfo<P>) {
+    fn validate_vote(&self, _vote:&VoteMessage<P>) {
         unimplemented!();
     }
 }
@@ -90,7 +89,7 @@ impl<P: Pair> HotstuffLeader<P> for HotstuffVoter<P> {
 /// Hotstuff validator trait implementation
 impl<P: Pair> HotstuffValidator<P> for HotstuffVoter<P> {
 
-    fn send_vote(&self, _vote: &VoteInfo<P>) {
+    fn send_vote(&self, _vote: &VoteMessage<P>) {
         unimplemented!();
     }
 
