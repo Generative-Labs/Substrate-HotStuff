@@ -15,6 +15,7 @@ use sp_consensus_hotstuff::sr25519::AuthorityPair as HotstuffPair;
 
 use std::{sync::Arc, time::Duration};
 
+use hotstuff::worker as hotstuff_worker;
 use hotstuff::params::StartHotstuffParams;
 
 // Our native executor instance.
@@ -290,7 +291,7 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 
 
 		// // start hotstuff
-		let hotstuff_work = hotstuff::start_hotstuff::<HotstuffPair, _, _, _, _, _, _, _, _>(StartHotstuffParams {
+		let hotstuff_work = hotstuff_worker::start_hotstuff::<HotstuffPair, _, _, _, _, _, _, _, _>(StartHotstuffParams {
 			client,
 			select_chain,
 			block_import,
@@ -306,7 +307,6 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 		task_manager
 		.spawn_essential_handle()
 		.spawn_blocking("hotstuff-entry", Some("hotstuff"), hotstuff_work);
-
 	}
 
 	if enable_grandpa {

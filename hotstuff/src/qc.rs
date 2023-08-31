@@ -1,5 +1,6 @@
 
 use sp_core::H256;
+pub type SignatureBytes = [u8; 64];
 
 pub type ViewNumber = u64;
 pub type SignatureSet = Vec<Option<SignatureBytes>>;
