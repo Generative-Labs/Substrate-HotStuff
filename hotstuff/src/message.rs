@@ -1,14 +1,9 @@
 
-
+use crypto;
 use sp_core::H256;
-// use sp_consensus::Proposer;
-
 use sp_core::crypto::Pair;
 
-use crypto;
-
 pub type AuthorityId<P> = <P as Pair>::Public;
-
 
 pub struct VoteMessage<P: Pair> {
     pub block_hash: H256,
