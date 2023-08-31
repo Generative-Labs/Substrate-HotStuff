@@ -1,10 +1,14 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
+
 use codec::{Codec, Decode, Encode};
 
 use sp_runtime::ConsensusEngineId;
 use sp_std::vec::Vec;
 
+
+pub mod digests;
+pub mod inherents;
 
 // use sp_application_crypto::RuntimeAppPublic;
 
@@ -132,7 +136,7 @@ sp_api::decl_runtime_apis! {
 		// /// Returns the slot duration for hotstuff.
 		// ///
 		// /// Currently, only the value provided by this type at genesis will be used.
-		// fn slot_duration() -> SlotDuration;
+		fn slot_duration() -> SlotDuration;
 
 		/// Return the current set of authorities.
 		fn authorities() -> Vec<AuthorityId>;

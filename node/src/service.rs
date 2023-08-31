@@ -3,20 +3,25 @@
 use futures::FutureExt;
 use node_template_runtime::{self, opaque::Block, RuntimeApi};
 use sc_client_api::{Backend, BlockBackend};
-use sc_consensus_aura::ImportQueueParams;
+// use sc_consensus_aura::{ImportQueueParams, StartAuraParams, SlotProportion};
 use sc_consensus_grandpa::SharedVoterState;
+
+use sc_consensus_hotstuff::{ImportQueueParams, StartHotstuffParams, SlotProportion};
+
 pub use sc_executor::NativeElseWasmExecutor;
 use sc_service::{error::Error as ServiceError, Configuration, TaskManager, WarpSyncParams};
 use sc_telemetry::{Telemetry, TelemetryWorker};
 use sc_transaction_pool_api::OffchainTransactionPoolFactory;
-use sp_consensus_aura::sr25519::AuthorityPair as AuraPair;
+// use sp_consensus_aura::sr25519::AuthorityPair as AuraPair;
 use sp_consensus_hotstuff::sr25519::AuthorityPair as HotstuffPair;
 
 
 use std::{sync::Arc, time::Duration};
 
 use hotstuff::worker as hotstuff_worker;
-use hotstuff::params::StartHotstuffParams;
+// use hotstuff::params::StartHotstuffParams;
+
+use sc_consensus_hotstuff;
 
 // Our native executor instance.
 pub struct ExecutorDispatch;
@@ -108,10 +113,10 @@ pub fn new_partial(
 		telemetry.as_ref().map(|x| x.handle()),
 	)?;
 
-	let slot_duration = sc_consensus_aura::slot_duration(&*client)?;
+	let slot_duration = sc_consensus_hotstuff::slot_duration(&*client)?;
 
 	let import_queue =
-		sc_consensus_aura::import_queue::<AuraPair, _, _, _, _, _>(ImportQueueParams {
+		sc_consensus_hotstuff::import_queue::<HotstuffPair, _, _, _, _, _>(ImportQueueParams {
 			block_import: grandpa_block_import.clone(),
 			justification_import: Some(Box::new(grandpa_block_import.clone())),
 			client: client.clone(),
@@ -119,7 +124,7 @@ pub fn new_partial(
 				let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
 
 				let slot =
-					sp_consensus_aura::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
+					sp_consensus_hotstuff::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
 						*timestamp,
 						slot_duration,
 					);
@@ -207,9 +212,10 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 		);
 	}
 
+	let backoff_authoring_blocks: Option<()> = None;
+
 	let role = config.role.clone();
 	let force_authoring = config.force_authoring;
-	// let backoff_authoring_blocks: Option<()> = None;
 	let name = config.network.node_name.clone();
 	let enable_grandpa = !config.disable_grandpa;
 	let prometheus_registry = config.prometheus_registry().cloned();
@@ -250,63 +256,64 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 			telemetry.as_ref().map(|x| x.handle()),
 		);
 
-		// let slot_duration = sc_consensus_aura::slot_duration(&*client)?;
+		let slot_duration = sc_consensus_hotstuff::slot_duration(&*client)?;
 
-		// let aura = sc_consensus_aura::start_aura::<AuraPair, _, _, _, _, _, _, _, _, _, _>(
-		// 	StartAuraParams {
-		// 		slot_duration,
-		// 		client,
-		// 		select_chain,
-		// 		block_import,
-		// 		proposer_factory,
-		// 		create_inherent_data_providers: move |_, ()| async move {
-		// 			let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
+		let hotstuff = sc_consensus_hotstuff::start_hotstuff::<HotstuffPair, _, _, _, _, _, _, _, _, _, _>(
+			StartHotstuffParams {
+				slot_duration,
+				client,
+				select_chain,
+				block_import,
+				proposer_factory,
+				create_inherent_data_providers: move |_, ()| async move {
+					let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
 
-		// 			let slot =
-		// 				sp_consensus_aura::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
-		// 					*timestamp,
-		// 					slot_duration,
-		// 				);
+					let slot =
+						sp_consensus_hotstuff::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
+							*timestamp,
+							slot_duration,
+						);
 
-		// 			Ok((slot, timestamp))
-		// 		},
-		// 		force_authoring,
-		// 		backoff_authoring_blocks,
-		// 		keystore: keystore_container.keystore(),
-		// 		sync_oracle: sync_service.clone(),
-		// 		justification_sync_link: sync_service.clone(),
-		// 		block_proposal_slot_portion: SlotProportion::new(2f32 / 3f32),
-		// 		max_block_proposal_slot_portion: None,
-		// 		telemetry: telemetry.as_ref().map(|x| x.handle()),
-		// 		compatibility_mode: Default::default(),
-		// 	},
-		// )?;
+					Ok((slot, timestamp))
+				},
+				force_authoring,
+				backoff_authoring_blocks,
+				keystore: keystore_container.keystore(),
+				sync_oracle: sync_service.clone(),
+				justification_sync_link: sync_service.clone(),
+				block_proposal_slot_portion: SlotProportion::new(2f32 / 3f32),
+				max_block_proposal_slot_portion: None,
+				telemetry: telemetry.as_ref().map(|x| x.handle()),
+				compatibility_mode: Default::default(),
+			},
+		)?;
 
-		// // the AURA authoring task is considered essential, i.e. if it
-		// // fails we take down the service with it.
-		// task_manager
-		// 	.spawn_essential_handle()
-		// 	.spawn_blocking("aura", Some("block-authoring"), aura);
-
-
-
-		// // start hotstuff
-		let hotstuff_work = hotstuff_worker::start_hotstuff::<HotstuffPair, _, _, _, _, _, _, _, _>(StartHotstuffParams {
-			client,
-			select_chain,
-			block_import,
-			proposer_factory,
-			force_authoring,
-			keystore: keystore_container.keystore(),
-			sync_oracle: sync_service.clone(),
-			justification_sync_link: sync_service.clone(),
-			telemetry: telemetry.as_ref().map(|x| x.handle()),
-			compatibility_mode: Default::default(),
-		})?;
-
+		// the hotstuff authoring task is considered essential, i.e. if it
+		// fails we take down the service with it.
 		task_manager
-		.spawn_essential_handle()
-		.spawn_blocking("hotstuff-entry", Some("hotstuff"), hotstuff_work);
+			.spawn_essential_handle()
+			.spawn_blocking("hotstuff", Some("block-authoring"), hotstuff);
+
+
+
+		// /// start hotstuff
+		// let hotstuff_work = hotstuff_worker::start_hotstuff::<HotstuffPair, _, _, _, _, _, _, _, _>(StartHotstuffParams {
+		// 	client,
+		// 	select_chain,
+		// 	block_import,
+		// 	proposer_factory,
+		// 	force_authoring,
+		// 	keystore: keystore_container.keystore(),
+		// 	sync_oracle: sync_service.clone(),
+		// 	justification_sync_link: sync_service.clone(),
+		// 	telemetry: telemetry.as_ref().map(|x| x.handle()),
+		// 	compatibility_mode: Default::default(),
+		// })?;
+
+		// task_manager
+		// .spawn_essential_handle()
+		// .spawn_blocking("hotstuff-entry", Some("hotstuff"), hotstuff_work);
+
 	}
 
 	if enable_grandpa {

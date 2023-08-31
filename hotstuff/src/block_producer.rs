@@ -57,3 +57,4 @@ impl<A, B, C, PR> BlockProducer<A, B, C, PR> {
 
     // todo: Other necessary methods
 }
+

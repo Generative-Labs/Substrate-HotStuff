@@ -3,6 +3,7 @@ pub struct HotstuffVotingSystem {
 }
 
 impl HotstuffVotingSystem {
+
     pub fn new(node: Box<dyn HotstuffVoteWork>) -> Self {
         Self { node }
     }

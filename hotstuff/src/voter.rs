@@ -3,14 +3,9 @@ use std::marker::PhantomData;
 
 use sp_core::crypto::Pair;
 
-#[path="leader.rs"]
-pub mod leader;
-
-#[path="validator.rs"]
-pub mod validator;
-
-#[path="message.rs"]
-pub mod message;
+use crate::leader;
+use crate::validator;
+use crate::message;
 
 
 pub trait HotstuffVoteWork<P: Pair>: leader::HotstuffLeader<P> + validator::HotstuffValidator<P> {}
