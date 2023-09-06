@@ -18,9 +18,6 @@ use sp_consensus_hotstuff::sr25519::AuthorityPair as HotstuffPair;
 
 use std::{sync::Arc, time::Duration};
 
-use hotstuff::worker as hotstuff_worker;
-// use hotstuff::params::StartHotstuffParams;
-
 use sc_consensus_hotstuff;
 
 // Our native executor instance.

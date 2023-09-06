@@ -131,6 +131,7 @@ pub mod pallet {
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
 		fn on_initialize(_: BlockNumberFor<T>) -> Weight {
+			log::info!("【on_initialize】");
 			if let Some(new_slot) = Self::current_slot_from_digests() {
 				let current_slot = CurrentSlot::<T>::get();
 
@@ -189,6 +190,7 @@ pub mod pallet {
 	#[pallet::genesis_build]
 	impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
 		fn build(&self) {
+			log::info!("【initialize authorities】BuildGenesisConfig::initialize_authorities  {}", self.authorities.len());
 			Pallet::<T>::initialize_authorities(&self.authorities);
 		}
 	}
@@ -202,6 +204,7 @@ impl<T: Config> Pallet<T> {
 	///
 	/// This is a no-op if `new` is empty.
 	pub fn change_authorities(new: BoundedVec<T::AuthorityId, T::MaxAuthorities>) {
+		log::info!("=== change_authorities");
 		if new.is_empty() {
 			log::warn!(target: LOG_TARGET, "Ignoring empty authority change.");
 
@@ -300,6 +303,7 @@ impl<T: Config> Pallet<T> {
 
 		// Check that the current authority is not disabled.
 		let authority_index = *current_slot % authorities_len as u64;
+		log::info!("===authority_index: {}", authority_index);
 		frame_support::ensure!(
 			!T::DisabledValidators::is_disabled(authority_index as u32),
 			"Current validator is disabled and should not be attempting to author blocks.",
@@ -320,6 +324,7 @@ impl<T: Config> OneSessionHandler<T::AccountId> for Pallet<T> {
 	where
 		I: Iterator<Item = (&'a T::AccountId, T::AuthorityId)>,
 	{
+		log::info!("【on_genesis_session】");
 		let authorities = validators.map(|(_, k)| k).collect::<Vec<_>>();
 		Self::initialize_authorities(&authorities);
 	}
@@ -328,6 +333,7 @@ impl<T: Config> OneSessionHandler<T::AccountId> for Pallet<T> {
 	where
 		I: Iterator<Item = (&'a T::AccountId, T::AuthorityId)>,
 	{
+		log::info!(">>>on_new_session");
 		// instant changes
 		if changed {
 			let next_authorities = validators.map(|(_, k)| k).collect::<Vec<_>>();

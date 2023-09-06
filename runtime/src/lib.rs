@@ -6,6 +6,7 @@
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
+
 use pallet_grandpa::AuthorityId as GrandpaId;
 use sp_api::impl_runtime_apis;
 // use sp_consensus_aura::sr25519::AuthorityId as AuraId;
@@ -156,6 +157,23 @@ parameter_types! {
 	pub const SS58Prefix: u8 = 42;
 }
 
+// impl pallet_session::Config for Runtime {
+// 	type RuntimeEvent = RuntimeEvent;
+// 	type ValidatorId = <Self as frame_system::Config>::AccountId;
+// 	type ValidatorIdOf = pallet_staking::StashOf<Self>;
+// 	type ShouldEndSession = Babe;
+// 	type NextSessionRotation = Babe;
+// 	type SessionManager = pallet_session::historical::NoteHistoricalRoot<Self, Staking>;
+// 	type SessionHandler = <SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
+// 	type Keys = SessionKeys;
+// 	type WeightInfo = pallet_session::weights::SubstrateWeight<Runtime>;
+// }
+
+// impl pallet_session::historical::Config for Runtime {
+// 	type FullIdentification = pallet_staking::Exposure<AccountId, Balance>;
+// 	type FullIdentificationOf = pallet_staking::ExposureOf<Runtime>;
+// }
+
 // Configure FRAME pallets to include in runtime.
 
 impl frame_system::Config for Runtime {
@@ -291,7 +309,6 @@ impl pallet_hotstuff::Config for Runtime {
 	type MaxAuthorities = ConstU32<32>;
 	type AllowMultipleBlocksPerSlot = ConstBool<false>;
 
-	// type RuntimeEvent = RuntimeEvent;
 	type WeightInfo = pallet_hotstuff::weights::SubstrateWeight<Runtime>;
 }
 
@@ -309,6 +326,8 @@ construct_runtime!(
 		// Include the custom logic from the pallet-template in the runtime.
 		TemplateModule: pallet_template,
 		Hotstuff: pallet_hotstuff,
+
+		// Session: pallet_session,
 	}
 );
 
@@ -359,6 +378,7 @@ mod benches {
 		[pallet_template, TemplateModule]
 	);
 }
+use frame_support::log;
 
 impl_runtime_apis! {
 	impl sp_api::Core<Block> for Runtime {
@@ -391,14 +411,19 @@ impl_runtime_apis! {
 
 	impl sp_block_builder::BlockBuilder<Block> for Runtime {
 		fn apply_extrinsic(extrinsic: <Block as BlockT>::Extrinsic) -> ApplyExtrinsicResult {
+			log::info!("【sp_block_builder::BlockBuilder】 apply_extrinsic");
 			Executive::apply_extrinsic(extrinsic)
 		}
 
 		fn finalize_block() -> <Block as BlockT>::Header {
+			log::info!("【sp_block_builder::BlockBuilder】 finalize_block");
+
 			Executive::finalize_block()
 		}
 
 		fn inherent_extrinsics(data: sp_inherents::InherentData) -> Vec<<Block as BlockT>::Extrinsic> {
+			log::info!("【sp_block_builder::BlockBuilder】 inherent_extrinsics");
+
 			data.create_extrinsics()
 		}
 
@@ -416,6 +441,8 @@ impl_runtime_apis! {
 			tx: <Block as BlockT>::Extrinsic,
 			block_hash: <Block as BlockT>::Hash,
 		) -> TransactionValidity {
+			log::info!("sp_transaction_pool::BlockBuilder】 validate_transaction");
+
 			Executive::validate_transaction(source, tx, block_hash)
 		}
 	}
@@ -462,10 +489,12 @@ impl_runtime_apis! {
 
 	impl sp_consensus_grandpa::GrandpaApi<Block> for Runtime {
 		fn grandpa_authorities() -> sp_consensus_grandpa::AuthorityList {
+			log::info!("sp_consensus_grandpa=>>> grandpa_authorities");
 			Grandpa::grandpa_authorities()
 		}
 
 		fn current_set_id() -> sp_consensus_grandpa::SetId {
+			log::info!("sp_consensus_grandpa=>>> current_set_id");
 			Grandpa::current_set_id()
 		}
 
