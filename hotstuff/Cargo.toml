@@ -13,6 +13,7 @@ serde = { version = "1.0", features = ["derive"] }
 crypto =  { path="../crypto" }
 sc-basic-authorship = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 
+sc-service = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 sp-consensus = { version = "0.10.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 sp-api = { version = "4.0.0-dev",  git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 sp-runtime = { version = "24.0.0",  git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
@@ -25,6 +26,7 @@ sp-blockchain = { version = "4.0.0-dev", git = "https://github.com/paritytech/su
 sc-consensus = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 sp-inherents = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 sc-consensus-slots = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
+sc-consensus-grandpa = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 sp-consensus-hotstuff = { path="../primitives/consensus/hotstuff" }
 
 libp2p-identity = { version = "0.2.0", features = ["peerid", "ed25519"]}

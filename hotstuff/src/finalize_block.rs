@@ -1,47 +1,58 @@
 use std::sync::Arc;
-use sp_runtime::traits::{Block as BlockT, NumberFor};
 
+use sc_client_api::{
+    backend,
+    backend::Finalizer,
+    CallExecutor,
+};
+use sc_consensus_grandpa::{
+    // LinkHalf,
+    ClientForGrandpa,
+};
+use sp_blockchain::Error;
+use sp_runtime::{
+    Justification,
+    traits::{Block as BlockT, NumberFor},
+};
 
-pub struct FinalityBlock<Block, BE, Client> {
-    client: Arc<Client>,
-    authority_set: SharedAuthoritySet<Block::Hash, NumberFor<Block>>,
+// use sc_consensus_grandpa::authorities::SharedAuthoritySet;
+// use sc_service::client::Client;
+
+pub struct FinalityBlock<B, E, Block, RA, Client> //, C, SC>
+    where
+        B: backend::Backend<Block>,
+        E: CallExecutor<Block>,
+        Block: BlockT,
+
+{
+    client: Arc<Client<B, E, Block, RA>>,
+    // grandpalink: LinkHalf<Block, C, SC>,
 }
 
-impl<Block, BE, Client> FinalityBlock<Block, BE, Client>
+impl<B, E, Block, RA, Client> FinalityBlock<B, E, Block, RA, Client>
     where
         Block: BlockT,
-        BE: BackendT<Block>,
-        Client: ClientForGrandpa<Block, BE>,
+        B: backend::Backend<Block>,
+        E: CallExecutor<Block>,
+        Client: ClientForGrandpa<Block, B>,
 {
-    pub fn new(client: Arc<Client>, authority_set: SharedAuthoritySet<Block::Hash, NumberFor<Block>>) -> Self {
-        FinalityBlock {
-            client,
-            authority_set,
-        }
+    pub fn new(client: Arc<Client<B, E, Block, RA>>) -> Self {
+        FinalityBlock { client }
     }
 
     pub fn update_state(&self, _block_hash: Block::Hash, _block_number: NumberFor<Block>) {
         // TODO: Implement your logic to update the state based on the finalized block
     }
 
-    pub fn apply_finality(
+    pub fn hotstuff_apply_finality(
         &self,
         block_hash: Block::Hash,
-        persisted_justification: Option<(u64, Vec<u8>)>,
+        persisted_justification: Option<Justification>,
+        notify: bool,
     ) -> Result<(), Error> {
         // TODO: Implement the application of finality to the blockchain logic
-
-        let import_op = || {
-            // TODO: Implement import_op
-        };
-
-        // Ideally some handle to a synchronization oracle would be used
-        // to avoid unconditionally notifying.
-        self.client
-            .apply_finality(import_op, block_hash, persisted_justification, true)
-            .map_err(|e| {
-                // Handle the error, log, etc.
-                e
-            })
+        // self.grandpalink.client.finalize_block(block_hash, persisted_justification, notify)?;
+        self.client.finalize_block(block_hash, persisted_justification, notify)?;
+        Ok(())
     }
 }
