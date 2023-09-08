@@ -1,20 +1,3 @@
-// This file is part of Substrate.
-
-// Copyright (C) Parity Technologies (UK) Ltd.
-// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use std::{
 	collections::{BTreeMap, HashMap},
@@ -460,7 +443,6 @@ impl<BE, Block: BlockT, C, N: NetworkT<Block>, S: SyncingT<Block>, SC, VR>
 	where
 		F: FnOnce(&VoterSetState<Block>) -> Result<Option<VoterSetState<Block>>, Error>,
 	{
-		println!("[Environment]->>>: update_voter_set_state");
 		self.voter_set_state.with(|voter_set_state| {
 			if let Some(set_state) = f(voter_set_state)? {
 				*voter_set_state = set_state;
@@ -518,8 +500,6 @@ where
 			let info = self.client.info();
 			(info.best_hash, info.best_number)
 		};
-
-		println!("Environment::report_equivocation best_block_number:{} best_block_hash:{}", best_block_number, best_block_hash);
 
 		let authority_set = self.authority_set.inner();
 
@@ -730,7 +710,6 @@ where
 		&self,
 		round: RoundNumber,
 	) -> voter::RoundData<Self::Id, Self::Timer, Self::In, Self::Out> {
-		println!("🔥>>>voter::Environment round_data");
 		let prevote_timer = Delay::new(self.config.gossip_duration * 2);
 		let precommit_timer = Delay::new(self.config.gossip_duration * 4);
 
@@ -764,7 +743,6 @@ where
 			_ => None,
 		};
 
-		println!("\tround_data self.network.round_communication");
 		let (incoming, outgoing) = self.network.round_communication(
 			keystore,
 			crate::communication::Round(round),
@@ -808,7 +786,6 @@ where
 			Some(id) => id,
 			None => return Ok(()),
 		};
-		println!("[env] env::proposed=== self.update_voter_set_state");
 
 		self.update_voter_set_state(|voter_set_state| {
 			let (completed_rounds, current_rounds) = voter_set_state.with_current_round(round)?;
@@ -852,7 +829,7 @@ where
 			Some(id) => id,
 			None => return Ok(()),
 		};
-		println!("[env] env::prevoted=== ");
+
 		let report_prevote_metrics = |prevote: &Prevote<Block::Header>| {
 			telemetry!(
 				self.telemetry;
@@ -867,7 +844,6 @@ where
 				metrics.finality_grandpa_prevotes.inc();
 			}
 		};
-		println!("\t[env] env::prevoted=== update_voter_set_state");
 
 		self.update_voter_set_state(|voter_set_state| {
 			let (completed_rounds, current_rounds) = voter_set_state.with_current_round(round)?;
@@ -912,8 +888,6 @@ where
 		round: RoundNumber,
 		precommit: Precommit<Block::Header>,
 	) -> Result<(), Self::Error> {
-		println!("[env] env::precommitted=== voting_on");
-
 		let local_id = match self.voter_set_state.voting_on(round) {
 			Some(id) => id,
 			None => return Ok(()),
@@ -934,7 +908,6 @@ where
 			}
 		};
 
-		println!("\t[env] env::precommitted=== self.update_voter_set_state");
 		self.update_voter_set_state(|voter_set_state| {
 			let (completed_rounds, current_rounds) = voter_set_state.with_current_round(round)?;
 			let current_round = current_rounds
@@ -990,8 +963,6 @@ where
 		base: (Block::Hash, NumberFor<Block>),
 		historical_votes: &HistoricalVotes<Block>,
 	) -> Result<(), Self::Error> {
-		println!("[env] env::completed===");
-
 		debug!(
 			target: LOG_TARGET,
 			"Voter {} completed round {} in set {}. Estimate = {:?}, Finalized in round = {:?}",
@@ -1002,7 +973,6 @@ where
 			state.finalized.as_ref().map(|e| e.1),
 		);
 
-		println!("\t[env] env::completed=== self.update_voter_set_state");
 		self.update_voter_set_state(|voter_set_state| {
 			// NOTE: we don't use `with_current_round` here, it is possible that
 			// we are not currently tracking this round if it is a round we
@@ -1055,8 +1025,6 @@ where
 		_base: (Block::Hash, NumberFor<Block>),
 		historical_votes: &HistoricalVotes<Block>,
 	) -> Result<(), Self::Error> {
-		println!("[env] env::concluded===");
-
 		debug!(
 			target: LOG_TARGET,
 			"Voter {} concluded round {} in set {}. Estimate = {:?}, Finalized in round = {:?}",
@@ -1066,7 +1034,7 @@ where
 			state.estimate.as_ref().map(|e| e.1),
 			state.finalized.as_ref().map(|e| e.1),
 		);
-		println!("\t[env] env::concluded=== self.update_voter_set_state");
+
 		self.update_voter_set_state(|voter_set_state| {
 			// NOTE: we don't use `with_current_round` here, because a concluded
 			// round is completed and cannot be current.
@@ -1114,11 +1082,10 @@ where
 		round: RoundNumber,
 		commit: Commit<Block::Header>,
 	) -> Result<(), Self::Error> {
-		println!("[env] env::finalize_block: hash:{} number:{} round:{}", hash, number, round);
 		finalize_block(
 			self.client.clone(),
 			&self.authority_set,
-			Some(self.config.justification_generation_period),
+			Some(self.config.justification_period.into()),
 			hash,
 			number,
 			(round, commit).into(),
@@ -1146,7 +1113,6 @@ where
 			Self::Signature,
 		>,
 	) {
-		println!("[env] env::prevote_equivocation===");
 		warn!(
 			target: LOG_TARGET,
 			"Detected prevote equivocation in the finality worker: {:?}", equivocation
@@ -1165,8 +1131,6 @@ where
 			Self::Signature,
 		>,
 	) {
-		println!("[env] env::precommit_equivocation===");
-
 		warn!(
 			target: LOG_TARGET,
 			"Detected precommit equivocation in the finality worker: {:?}", equivocation
@@ -1334,38 +1298,6 @@ where
 		.or_else(|| Some((target_header.hash(), *target_header.number()))))
 }
 
-/// Whether we should process a justification for the given block.
-///
-/// This can be used to decide whether to import a justification (when
-/// importing a block), or whether to generate a justification from a
-/// commit (when validating). Justifications for blocks that change the
-/// authority set will always be processed, otherwise we'll only process
-/// justifications if the last one was `justification_period` blocks ago.
-pub(crate) fn should_process_justification<BE, Block, Client>(
-	client: &Client,
-	justification_period: u32,
-	number: NumberFor<Block>,
-	enacts_change: bool,
-) -> bool
-where
-	Block: BlockT,
-	BE: BackendT<Block>,
-	Client: ClientForGrandpa<Block, BE>,
-{
-	if enacts_change {
-		return true
-	}
-
-	let last_finalized_number = client.info().finalized_number;
-
-	// keep the first justification before reaching the justification period
-	if last_finalized_number.is_zero() {
-		return true
-	}
-
-	last_finalized_number / justification_period.into() != number / justification_period.into()
-}
-
 /// Finalize the given block and apply any authority set changes. If an
 /// authority set change is enacted then a justification is created (if not
 /// given) and stored with the block when finalizing it.
@@ -1373,7 +1305,7 @@ where
 pub(crate) fn finalize_block<BE, Block, Client>(
 	client: Arc<Client>,
 	authority_set: &SharedAuthoritySet<Block::Hash, NumberFor<Block>>,
-	justification_generation_period: Option<u32>,
+	justification_period: Option<NumberFor<Block>>,
 	hash: Block::Hash,
 	number: NumberFor<Block>,
 	justification_or_commit: JustificationOrCommit<Block>,
@@ -1386,8 +1318,6 @@ where
 	BE: BackendT<Block>,
 	Client: ClientForGrandpa<Block, BE>,
 {
-	println!("[env.rs] pub(crate) fn finalize_block");
-
 	// NOTE: lock must be held through writing to DB to avoid race. this lock
 	//       also implicitly synchronizes the check for last finalized number
 	//       below.
@@ -1446,13 +1376,22 @@ where
 		let (justification_required, justification) = match justification_or_commit {
 			JustificationOrCommit::Justification(justification) => (true, justification),
 			JustificationOrCommit::Commit((round_number, commit)) => {
-				let enacts_change = status.new_set_block.is_some();
+				let mut justification_required =
+					// justification is always required when block that enacts new authorities
+					// set is finalized
+					status.new_set_block.is_some();
 
-				let justification_required = justification_generation_period
-					.map(|period| {
-						should_process_justification(&*client, period, number, enacts_change)
-					})
-					.unwrap_or(enacts_change);
+				// justification is required every N blocks to be able to prove blocks
+				// finalization to remote nodes
+				if !justification_required {
+					if let Some(justification_period) = justification_period {
+						let last_finalized_number = client.info().finalized_number;
+						justification_required = (!last_finalized_number.is_zero() ||
+							number - last_finalized_number == justification_period) &&
+							(last_finalized_number / justification_period !=
+								number / justification_period);
+					}
+				}
 
 				let justification =
 					GrandpaJustification::from_commit(&client, round_number, commit)?;
@@ -1461,7 +1400,6 @@ where
 			},
 		};
 
-		println!("\t[env.rs] pub(crate) fn finalize_block notify_justification");
 		notify_justification(justification_sender, || Ok(justification.clone()));
 
 		let persisted_justification = if justification_required {
@@ -1472,10 +1410,6 @@ where
 
 		// ideally some handle to a synchronization oracle would be used
 		// to avoid unconditionally notifying.
-
-
-		println!("\t[env.rs] pub(crate) fn finalize_block client.apply_finality");
-
 		client
 			.apply_finality(import_op, hash, persisted_justification, true)
 			.map_err(|e| {
@@ -1496,8 +1430,6 @@ where
 			"afg.finalized_blocks_up_to";
 			"number" => ?number, "hash" => ?hash,
 		);
-
-		println!("\t[env.rs] pub(crate) fn finalize_block aux_schema::update_best_justification");
 
 		crate::aux_schema::update_best_justification(&justification, |insert| {
 			apply_aux(import_op, insert, &[])
@@ -1538,8 +1470,6 @@ where
 		} else {
 			None
 		};
-
-		println!("\t[env.rs] pub(crate) fn finalize_block update_authority_set status.changed {}", status.changed);
 
 		if status.changed {
 			let write_result = crate::aux_schema::update_authority_set::<Block, _, _>(

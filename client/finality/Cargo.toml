@@ -1,5 +1,5 @@
 [package]
-name = "node-template"
+name = "sc-hotstuff-finality"
 version = "4.0.0-dev"
 description = "A fresh FRAME-based Substrate node, ready for hacking."
 authors = ["Substrate DevHub <https://github.com/substrate-developer-hub>"]
@@ -8,13 +8,10 @@ edition = "2021"
 license = "MIT-0"
 publish = false
 repository = "https://github.com/substrate-developer-hub/substrate-node-template/"
-build = "build.rs"
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
 
-[[bin]]
-name = "node-template"
 
 [dependencies]
 clap = { version = "4.2.5", features = ["derive"] }
@@ -46,11 +43,6 @@ sp-keyring = { version = "24.0.0", git = "https://github.com/paritytech/substrat
 frame-system = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 pallet-transaction-payment = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 
-sc-consensus-grandpafork = { path="../client/grandpa" }
-
-sc-consensus-hotstuff = { path="../client/consensus" }
-sc-hotstuff-finality = { path ="../client/finality"}
-
 prometheus-endpoint = { package = "substrate-prometheus-endpoint", version = "0.10.0-dev",  git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 
 
@@ -68,9 +60,6 @@ pallet-transaction-payment-rpc = { version = "4.0.0-dev", git = "https://github.
 frame-benchmarking = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 frame-benchmarking-cli = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 
-# Local Dependencies
-node-template-runtime = { version = "4.0.0-dev", path = "../runtime" }
-sp-consensus-hotstuff = { path = "../primitives/consensus/hotstuff" }
 
 # CLI-specific dependencies
 try-runtime-cli = { version = "0.10.0-dev", optional = true, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
@@ -88,28 +77,3 @@ serde_json = "1.0.61"
 rand = "0.7.3"
 thiserror = "1.0.21"
 anyhow = "1.0.38"
-
-crypto = { path = "../crypto" }
-store = { path = "../store" }
-consensus = { path = "../consensus" }
-mempool = { path = "../mempool" }
-
-
-hotstuff = {  path = "../hotstuff" }
-
-
-
-[build-dependencies]
-substrate-build-script-utils = { version = "3.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
-
-[features]
-default = []
-# Dependencies that are only required if runtime benchmarking should be build.
-runtime-benchmarks = [
-	"node-template-runtime/runtime-benchmarks",
-	"frame-benchmarking/runtime-benchmarks",
-	"frame-benchmarking-cli/runtime-benchmarks",
-]
-# Enable features that allow the runtime to be tried and debugged. Name might be subject to change
-# in the near future.
-try-runtime = ["node-template-runtime/try-runtime", "try-runtime-cli/try-runtime"]
