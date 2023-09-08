@@ -11,7 +11,7 @@ pub mod validator;
 pub mod voter;
 // pub mod voting_handler;
 pub mod worker;
-mod finalize_block;
+pub mod finalize_block;
 
 
 #[cfg(test)]
