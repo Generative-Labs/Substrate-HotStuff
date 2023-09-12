@@ -6,12 +6,16 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+array-bytes = "6.1"
+parking_lot = "0.12.1"
+
 futures = "0.3.21"
 tokio = { version = "1.22.0", features = ["rt", "time", "macros", "sync"] }
 codec = { package = "parity-scale-codec", version = "3.6.1", default-features = false }
 serde = { version = "1.0", features = ["derive"] }
 crypto =  { path="../crypto" }
 sc-basic-authorship = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
+sc-utils = { version = "4.0.0-dev",  git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 
 sp-consensus = { version = "0.10.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 sp-api = { version = "4.0.0-dev",  git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
@@ -26,6 +30,9 @@ sc-consensus = { version = "0.10.0-dev", git = "https://github.com/paritytech/su
 sp-inherents = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 sc-consensus-slots = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 sp-consensus-hotstuff = { path="../primitives/consensus/hotstuff" }
+
+sc-network = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
+sc-network-gossip = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 
 libp2p-identity = { version = "0.2.0", features = ["peerid", "ed25519"]}
 scale-info = { version = "2.5.0", default-features = false, features = ["derive"] }
@@ -48,3 +55,4 @@ ed25519-dalek = { version = "1.0.1", features = ["batch"] }
 parking_lot = "0.12.1"
 sc-transaction-pool = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 substrate-test-runtime-client = { version = "2.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
+sc-network-test = { version = "0.8.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }

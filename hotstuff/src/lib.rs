@@ -11,8 +11,8 @@ pub mod validator;
 pub mod voter;
 // pub mod voting_handler;
 pub mod worker;
-
-
+pub mod import;
+pub mod network_bridge;
 
 #[cfg(test)]
 mod tests {
@@ -20,14 +20,22 @@ mod tests {
 	use ed25519_dalek::Digest as _;
 	use ed25519_dalek::Sha512;
 
-	use sp_core::H256;
+	use futures::channel::mpsc;
+use libp2p_identity::Keypair;
+use libp2p_identity::PeerId;
+use sc_network_gossip::GossipEngine;
+use sp_api::ApiRef;
+use sp_api::ProvideRuntimeApi;
+use sp_core::H256;
 
 	use std::marker::PhantomData;
 
 	use sp_application_crypto::Pair;
 	use sp_application_crypto::ed25519::AppPair;
 
-	use crate::voter::HotstuffVoter;
+	use crate::import::GossipValidator;
+use crate::import::KnownPeers;
+use crate::voter::HotstuffVoter;
 	use crate::leader::HotstuffLeader;
 	use crate::validator::HotstuffValidator;
 	use crate::message::{VoteMessage, ConsensusMessage};
@@ -125,6 +133,7 @@ mod tests {
 
 
 
+	use crate::import;
 	/// block produce test
     use sc_basic_authorship::ProposerFactory;
     use sp_consensus::{Environment, Proposer};
@@ -175,5 +184,99 @@ mod tests {
         println!("Generated block: {:?}", block.block);
 
     }
+
+	// gossip test
+	use sc_network::ProtocolName;
+	use array_bytes::bytes2hex;
+
+	const GENESIS_HASH: H256 = H256::zero();
+	const GOSSIP_NAME: &str = "/hotstuff/2";
+	use sp_runtime::traits::NumberFor;
+	use sc_network_test::{Block, Peer, PeersClient, BlockImportAdapter};
+
+	pub fn gossip_protocol_name<Hash: AsRef<[u8]>>(
+		genesis_hash: Hash,
+		fork_id: Option<&str>,
+	) -> ProtocolName {
+		let genesis_hash = genesis_hash.as_ref();
+		if let Some(fork_id) = fork_id {
+			format!("/{}/{}{}", bytes2hex("", genesis_hash), fork_id, GOSSIP_NAME).into()
+		} else {
+			format!("/{}{}", bytes2hex("", genesis_hash), GOSSIP_NAME).into()
+		}
+	}
+
+
+	#[derive(Clone)]
+	pub(crate) struct TestApi {
+		pub hotstuff_genesis: u64,
+	}
+
+	impl TestApi {
+		pub fn new(
+			hotstuff_genesis: u64,
+		) -> Self {
+			TestApi {
+				hotstuff_genesis,
+			}
+		}
+	}
+
+
+	type HotstuffBlockImport = import::HotstuffBlockImport<
+		Block,
+		substrate_test_runtime_client::Backend,
+		TestApi,
+		BlockImportAdapter<PeersClient, sp_api::TransactionFor<TestApi, Block>>,
+	>;
+
+	fn hotstuff_gossip_proto_name() -> ProtocolName {
+		gossip_protocol_name(GENESIS_HASH, None)
+	}
+	pub(crate) type HotstuffPeer = Peer<PeerData, HotstuffBlockImport>;
+
+
+
+	// pub struct TestNetwork {
+	// 	peer_id: PeerId,
+	// 	identity: Keypair,
+	// }
+	// impl Default for TestNetwork {
+	// 	fn default() -> Self {
+	// 		let (tx, rx) = mpsc::unbounded();
+	// 		let identity = Keypair::generate_ed25519();
+	// 		TestNetwork {
+	// 			peer_id: identity.public().to_peer_id(),
+	// 			identity,
+	// 		}
+	// 	}
+	// }
+	
+
+	#[derive(Default)]
+	pub(crate) struct PeerData {
+	}
+	// use parking_lot::{Mutex};
+	// #[test]
+    // fn test_gossip_engine() {
+	// 	let network = Arc::new(TestNetwork::default());
+
+    //     // let client = Arc::new(substrate_test_runtime_client::new());
+
+	// 	let known_peers = Arc::new(Mutex::new(KnownPeers::new()));
+
+	// 	let (gossip_validator, _) = GossipValidator::new(known_peers);
+	// 	let gossip_validator = Arc::new(gossip_validator);
+
+	// 	let mut gossip_engine = GossipEngine::new(
+	// 		network.clone(),
+	// 		sync.clone(),
+	// 		"/hotstuff/whatever",
+	// 		gossip_validator.clone(),
+	// 		None,
+	// 	);
+
+	// 	gossip_engine.gossip_message("gossiptest", vec![1, 2], false);
+    // }
 
 }

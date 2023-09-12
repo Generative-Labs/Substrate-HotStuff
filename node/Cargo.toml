@@ -53,6 +53,7 @@ sc-hotstuff-finality = { path ="../client/finality"}
 
 prometheus-endpoint = { package = "substrate-prometheus-endpoint", version = "0.10.0-dev",  git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 
+sc-network-gossip = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 
 # These dependencies are used for the node template's RPCs
 jsonrpsee = { version = "0.16.2", features = ["server"] }

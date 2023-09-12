@@ -664,16 +664,16 @@ where
 				},
 		}
 
-		println!("🔥👴🏻 finalize_block start");
-		let _res = self.inner.finalize_block(hash, None, true);
-		match _res {
-			Ok(()) => {
-				println!("👴🏻 suecess finalize_block");
-			}
-			Err(err) => {
-				println!("👴🏻 finalize_block error: {:?}", err);
-			}
-		}
+		// println!("🔥👴🏻 finalize_block start");
+		// let _res: Result<(), sp_blockchain::Error> = self.inner.finalize_block(hash, None, true);
+		// match _res {
+		// 	Ok(()) => {
+		// 		println!("👴🏻 success finalize_block");
+		// 	}
+		// 	Err(err) => {
+		// 		println!("👴🏻 finalize_block error: {:?}", err);
+		// 	}
+		// }
 
 		Ok(ImportResult::Imported(imported_aux))
 	}

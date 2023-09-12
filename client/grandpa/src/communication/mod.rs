@@ -346,6 +346,7 @@ impl<B: BlockT, N: Network<B>, S: Syncing<B>> NetworkBridge<B, N, S> {
 						future::ready(None)
 					},
 					Ok(GossipMessage::Vote(msg)) => {
+						println!(">>> 🔥 GossipMessage: {:?}", msg);
 						// check signature.
 						if !voters.contains(&msg.message.id) {
 							debug!(

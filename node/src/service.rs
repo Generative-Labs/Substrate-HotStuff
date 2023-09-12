@@ -1,6 +1,7 @@
 //! Service and ServiceFactory implementation. Specialized wrapper over substrate service.
 
 use futures::FutureExt;
+use hotstuff::import::KnownPeers;
 use node_template_runtime::{self, opaque::Block, RuntimeApi};
 use sc_client_api::{Backend, BlockBackend};
 // use sc_consensus_aura::{ImportQueueParams, StartAuraParams, SlotProportion};
@@ -9,6 +10,7 @@ use sc_consensus_grandpa::{SharedVoterState, ClientForGrandpa};
 use sc_consensus_hotstuff::{ImportQueueParams, StartHotstuffParams, SlotProportion};
 
 pub use sc_executor::NativeElseWasmExecutor;
+use sc_network_gossip::GossipEngine;
 use sc_service::{error::Error as ServiceError, Configuration, TaskManager, WarpSyncParams};
 use sc_telemetry::{Telemetry, TelemetryWorker};
 use sc_transaction_pool_api::OffchainTransactionPoolFactory;
@@ -197,6 +199,20 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 			block_announce_validator_builder: None,
 			warp_sync_params: Some(WarpSyncParams::WithProvider(warp_sync)),
 		})?;
+	
+
+	// let known_peers = Arc::new(Mutex::new(KnownPeers::new()));
+
+	// let (gossip_validator, _) = GossipValidator::new(known_peers);
+	// let gossip_validator = Arc::new(gossip_validator);
+
+	// let mut gossip_engine = GossipEngine::new(
+	// 	network.clone(),
+	// 	sync_service.clone(),
+	// 	"/hotstuff/whatever",
+	// 	gossip_validator.clone(),
+	// 	None,
+	// );
 
 	if config.offchain_worker.enabled {
 		task_manager.spawn_handle().spawn(
@@ -323,53 +339,52 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 
 	}
 
-	// if enable_grandpa {
-	// 	// if the node isn't actively participating in consensus then it doesn't
-	// 	// need a keystore, regardless of which protocol we use below.
-	// 	let keystore = if role.is_authority() { Some(keystore_container.keystore()) } else { None };
-	
-	// 	let grandpa_config = sc_consensus_grandpa::Config {
-	// 		// FIXME #1578 make this available through chainspec
-	// 		gossip_duration: Duration::from_millis(333),
-	// 		justification_period: 512,
-	// 		name: Some(name),
-	// 		observer_enabled: false,
-	// 		keystore,
-	// 		local_role: role,
-	// 		telemetry: telemetry.as_ref().map(|x| x.handle()),
-	// 		protocol_name: grandpa_protocol_name,
-	// 	};
+	/// imported and generated.
+	const GRANDPA_JUSTIFICATION_PERIOD: u32 = 512;
 
-	// 	// start the full GRANDPA voter
-	// 	// NOTE: non-authorities could run the GRANDPA observer protocol, but at
-	// 	// this point the full voter should provide better guarantees of block
-	// 	// and vote data availability than the observer. The observer has not
-	// 	// been tested extensively yet and having most nodes in a network run it
-	// 	// could lead to finality stalls.
-	// 	let grandpa_config = sc_hotstuff_finality::GrandpaParams {
-	// 		client: hotstuff_client,
-	// 		config: grandpa_config,
-	// 		link: grandpa_link,
-	// 		voting_rule: sc_consensus_grandpa::VotingRulesBuilder::default().build(),
-	// 		prometheus_registry,
-	// 		shared_voter_state: SharedVoterState::empty(),
-	// 		telemetry: telemetry.as_ref().map(|x| x.handle()),
-	// 		offchain_tx_pool_factory: OffchainTransactionPoolFactory::new(transaction_pool),
-	// 	};
+	if enable_grandpa {
+				// if the node isn't actively participating in consensus then it doesn't
+		// need a keystore, regardless of which protocol we use below.
+		let keystore = if role.is_authority() { Some(keystore_container.keystore()) } else { None };
 
-	// 	// the GRANDPA voter task is considered infallible, i.e.
-	// 	// if it fails we take down the service with it.
-	// 	// task_manager.spawn_essential_handle().spawn_blocking(
-	// 	// 	"grandpa-voter",
-	// 	// 	None,
-	// 	// 	sc_consensus_grandpa::run_grandpa_voter(grandpa_config)?,
-	// 	// );
+		let grandpa_config = sc_consensus_grandpafork::Config {
+			// FIXME #1578 make this available through chainspec
+			gossip_duration: Duration::from_millis(333),
+			justification_period: GRANDPA_JUSTIFICATION_PERIOD,
+			name: Some(name),
+			observer_enabled: false,
+			keystore,
+			local_role: role,
+			telemetry: telemetry.as_ref().map(|x| x.handle()),
+			protocol_name: grandpa_protocol_name,
+		};
 
-	// 	task_manager.spawn_essential_handle().spawn_blocking(
-	// 		"hotstuff-voter", None, 
-	// 		sc_hotstuff_finality::run_hotstuff_voter(grandpa_config)?
-	// 	);
-	// }
+		// start the full GRANDPA voter
+		// NOTE: non-authorities could run the GRANDPA observer protocol, but at
+		// this point the full voter should provide better guarantees of block
+		// and vote data availability than the observer. The observer has not
+		// been tested extensively yet and having most nodes in a network run it
+		// could lead to finality stalls.
+		let grandpa_config = sc_consensus_grandpafork::GrandpaParams {
+			config: grandpa_config,
+			link: grandpa_link,
+			network,
+			sync: Arc::new(sync_service),
+			voting_rule: sc_consensus_grandpafork::VotingRulesBuilder::default().build(),
+			prometheus_registry,
+			shared_voter_state: sc_consensus_grandpafork::SharedVoterState::empty(),
+			telemetry: telemetry.as_ref().map(|x| x.handle()),
+			offchain_tx_pool_factory: OffchainTransactionPoolFactory::new(transaction_pool),
+		};
+
+		// the GRANDPA voter task is considered infallible, i.e.
+		// if it fails we take down the service with it.
+		task_manager.spawn_essential_handle().spawn_blocking(
+			"grandpa-voter",
+			None,
+			sc_consensus_grandpafork::run_grandpa_voter(grandpa_config)?,
+		);
+	}
 
 	network_starter.start_network();
 	Ok(task_manager)
