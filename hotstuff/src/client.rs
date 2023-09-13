@@ -1,11 +1,13 @@
 use std::{sync::Arc, marker::PhantomData};
 
-use sc_client_api::{LockImportRun, Finalizer, AuxStore, BlockchainEvents, ExecutorProvider, StorageProvider, TransactionFor, Backend};
+use parity_scale_codec::Decode;
+use sc_client_api::{LockImportRun, Finalizer, AuxStore, BlockchainEvents, ExecutorProvider, StorageProvider, TransactionFor, Backend, CallExecutor};
 use sc_consensus::BlockImport;
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::{HeaderMetadata, HeaderBackend, Error as ClientError};
 use sp_consensus_grandpa::AuthorityList;
-use sp_runtime::traits::{Block as BlockT, NumberFor, Zero};
+use sp_core::traits::CallContext;
+use sp_runtime::{traits::{Block as BlockT, NumberFor, Zero}, generic::BlockId};
 
 use crate::{network_bridge::{Network as NetworkT, Syncing as SyncingT, HotstuffNetworkBridge}, import::HotstuffBlockImport, aux_schema, authorities::SharedAuthoritySet};
 
@@ -87,20 +89,27 @@ pub(crate) trait BlockSyncRequester<Block: BlockT> {
 // }
 
 /// Link between the block importer and the background voter.
-pub struct LinkHalf<Block: BlockT, C> {
+pub struct LinkHalf<Block: BlockT, C, SC> {
 	client: Arc<C>,
+	select_chain: Option<PhantomData<SC>>,
 	persistent_data: aux_schema::PersistentData<Block>,
 	// voter_commands_rx: TracingUnboundedReceiver<VoterCommand<Block::Hash, NumberFor<Block>>>,
 	// justification_sender: GrandpaJustificationSender<Block>,
 	// justification_stream: GrandpaJustificationStream<Block>,
+	
 	// telemetry: Option<TelemetryHandle>,
 }
 
-impl<Block: BlockT, C> LinkHalf<Block, C> {
+impl<Block: BlockT, C, SC> LinkHalf<Block, C, SC> {
 	/// Get the shared authority set.
 	pub fn shared_authority_set(&self) -> &SharedAuthoritySet<Block::Hash, NumberFor<Block>> {
 		&self.persistent_data.authority_set
 	}
+
+	// /// Get the receiving end of justification notifications.
+	// pub fn justification_stream(&self) -> GrandpaJustificationStream<Block> {
+	// 	self.justification_stream.clone()
+	// }
 }
 
 
@@ -110,12 +119,40 @@ pub trait GenesisAuthoritySetProvider<Block: BlockT> {
 	fn get(&self) -> Result<AuthorityList, ClientError>;
 }
 
+
+impl<Block: BlockT, E, Client> GenesisAuthoritySetProvider<Block> for Arc<Client>
+where
+	E: CallExecutor<Block>,
+	Client: ExecutorProvider<Block, Executor = E> + HeaderBackend<Block>,
+{
+	fn get(&self) -> Result<AuthorityList, ClientError> {
+		// This implementation uses the Grandpa runtime API instead of reading directly from the
+		// `GRANDPA_AUTHORITIES_KEY` as the data may have been migrated since the genesis block of
+		// the chain, whereas the runtime API is backwards compatible.
+		self.executor()
+			.call(
+				self.expect_block_hash_from_id(&BlockId::Number(Zero::zero()))?,
+				"GrandpaApi_grandpa_authorities",
+				&[],
+				CallContext::Offchain,
+			)
+			.and_then(|call_result| {
+				Decode::decode(&mut &call_result[..]).map_err(|err| {
+					ClientError::CallResultDecode(
+						"failed to decode GRANDPA authorities set proof",
+						err,
+					)
+				})
+			})
+	}
+}
+
 /// Make block importer and link half necessary to tie the background voter
 /// to it.
-pub fn block_import<BE, Block: BlockT, Client>(
+pub fn block_import<BE, Block: BlockT, Client, SC>(
 	client: Arc<Client>,
 	genesis_authorities_provider: &dyn GenesisAuthoritySetProvider<Block>,
-) -> Result<(HotstuffBlockImport<BE, Block, Client>, LinkHalf<Block, Client>), ClientError>
+) -> Result<(HotstuffBlockImport<BE, Block, Client>, LinkHalf<Block, Client, SC>), ClientError>
 where
 	BE: Backend<Block> + 'static,
 	Client: ClientForHotstuff<Block, BE> + 'static,
@@ -137,8 +174,9 @@ where
 			client.clone(),
 		),
 		LinkHalf {
-			client,
-			persistent_data,
+			client: client,
+			select_chain: None,
+			persistent_data: persistent_data,
 		},
 	))
 }

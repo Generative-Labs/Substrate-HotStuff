@@ -68,7 +68,7 @@ pub fn new_partial(
 			// >,
 			// sc_consensus_grandpafork::LinkHalf<Block, FullClient, FullSelectChain>,
 			hotstuff::HotstuffBlockImport<FullBackend, Block, FullClient>,
-			hotstuff::LinkHalf<Block, FullClient>,
+			hotstuff::LinkHalf<Block, FullClient, FullSelectChain>,
 			Option<Telemetry>,
 		),
 	>,
@@ -372,25 +372,25 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 		// and vote data availability than the observer. The observer has not
 		// been tested extensively yet and having most nodes in a network run it
 		// could lead to finality stalls.
-		let grandpa_config = sc_consensus_grandpafork::GrandpaParams {
-			config: grandpa_config,
-			link: grandpa_link,
-			network,
-			sync: Arc::new(sync_service),
-			voting_rule: sc_consensus_grandpafork::VotingRulesBuilder::default().build(),
-			prometheus_registry,
-			shared_voter_state: sc_consensus_grandpafork::SharedVoterState::empty(),
-			telemetry: telemetry.as_ref().map(|x| x.handle()),
-			offchain_tx_pool_factory: OffchainTransactionPoolFactory::new(transaction_pool),
-		};
+		// let grandpa_config = sc_consensus_grandpafork::GrandpaParams {
+		// 	config: grandpa_config,
+		// 	link: grandpa_link,
+		// 	network,
+		// 	sync: Arc::new(sync_service),
+		// 	voting_rule: sc_consensus_grandpafork::VotingRulesBuilder::default().build(),
+		// 	prometheus_registry,
+		// 	shared_voter_state: sc_consensus_grandpafork::SharedVoterState::empty(),
+		// 	telemetry: telemetry.as_ref().map(|x| x.handle()),
+		// 	offchain_tx_pool_factory: OffchainTransactionPoolFactory::new(transaction_pool),
+		// };
 
 		// the GRANDPA voter task is considered infallible, i.e.
 		// if it fails we take down the service with it.
-		task_manager.spawn_essential_handle().spawn_blocking(
-			"grandpa-voter",
-			None,
-			sc_consensus_grandpafork::run_grandpa_voter(grandpa_config)?,
-		);
+		// task_manager.spawn_essential_handle().spawn_blocking(
+		// 	"grandpa-voter",
+		// 	None,
+		// 	sc_consensus_grandpafork::run_grandpa_voter(grandpa_config)?,
+		// );
 	}
 
 	network_starter.start_network();
