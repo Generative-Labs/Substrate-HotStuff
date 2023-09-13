@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 array-bytes = "6.1"
 parking_lot = "0.12.1"
+async-trait = "0.1.57"
 
 futures = "0.3.21"
 tokio = { version = "1.22.0", features = ["rt", "time", "macros", "sync"] }
@@ -16,6 +17,7 @@ serde = { version = "1.0", features = ["derive"] }
 crypto =  { path="../crypto" }
 sc-basic-authorship = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 sc-utils = { version = "4.0.0-dev",  git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
+finality-grandpa = { version = "0.16.2", features = ["derive-codec"] }
 
 sp-consensus = { version = "0.10.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 sp-api = { version = "4.0.0-dev",  git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
@@ -30,7 +32,7 @@ sc-consensus = { version = "0.10.0-dev", git = "https://github.com/paritytech/su
 sp-inherents = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 sc-consensus-slots = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 sp-consensus-hotstuff = { path="../primitives/consensus/hotstuff" }
-
+sp-consensus-grandpa = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 sc-network = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 sc-network-gossip = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 

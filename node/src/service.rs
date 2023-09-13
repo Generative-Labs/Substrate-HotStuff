@@ -339,6 +339,8 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 
 	}
 
+
+
 	/// imported and generated.
 	const GRANDPA_JUSTIFICATION_PERIOD: u32 = 512;
 

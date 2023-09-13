@@ -13,6 +13,7 @@ pub mod voter;
 pub mod worker;
 pub mod import;
 pub mod network_bridge;
+pub mod client;
 
 #[cfg(test)]
 mod tests {
@@ -222,18 +223,10 @@ use crate::voter::HotstuffVoter;
 		}
 	}
 
-
-	type HotstuffBlockImport = import::HotstuffBlockImport<
-		Block,
-		substrate_test_runtime_client::Backend,
-		TestApi,
-		BlockImportAdapter<PeersClient, sp_api::TransactionFor<TestApi, Block>>,
-	>;
-
-	fn hotstuff_gossip_proto_name() -> ProtocolName {
-		gossip_protocol_name(GENESIS_HASH, None)
-	}
-	pub(crate) type HotstuffPeer = Peer<PeerData, HotstuffBlockImport>;
+	// fn hotstuff_gossip_proto_name() -> ProtocolName {
+	// 	gossip_protocol_name(GENESIS_HASH, None)
+	// }
+	// pub(crate) type HotstuffPeer = Peer<PeerData, HotstuffBlockImport>;
 
 
 

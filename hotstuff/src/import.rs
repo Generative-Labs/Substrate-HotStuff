@@ -1,5 +1,7 @@
 use std::sync::Arc;
+use sc_client_api::Backend;
 use sc_network_gossip::{ValidatorContext, MessageIntent, ValidationResult};
+use sc_telemetry::log::debug;
 use sc_utils::{notification::NotificationSender, mpsc::{TracingUnboundedReceiver, tracing_unbounded}};
 use sp_core::H256;
 use sp_runtime::{
@@ -11,6 +13,14 @@ use sc_network::{PeerId, ReputationChange, ObservedRole};
 use sp_runtime::traits::Block;
 use std::collections::{HashMap, VecDeque};
 use std::marker::PhantomData;
+use sp_api::TransactionFor;
+
+use sp_consensus_grandpa::GrandpaApi;
+
+use sc_consensus::{BlockImport, ImportResult, BlockImportParams, BlockCheckParams};
+use sp_consensus::Error as ConsensusError;
+
+use crate::client::ClientForHotstuff;
 
 /// A block-import handler for Hotstuff.
 ///
@@ -18,11 +28,72 @@ use std::marker::PhantomData;
 /// Wraps a `inner: BlockImport` and ultimately defers to it.
 ///
 /// When using Hotstuff, the block import worker should be using this block import object.
-pub struct HotstuffBlockImport<Block: BlockT, Backend, RuntimeApi, I> {
-	backend: Arc<Backend>,
-	runtime: Arc<RuntimeApi>,
-	inner: I,
+pub struct HotstuffBlockImport<Backend, Block: BlockT, Client> {
+	backend: PhantomData<Backend>,
+	inner: Arc<Client>,
 	_phantom: PhantomData<Block>,
+}
+
+
+impl<Backend, Block: BlockT, Client> Clone
+	for HotstuffBlockImport<Backend, Block, Client>
+{
+	fn clone(&self) -> Self {
+		HotstuffBlockImport {
+			inner: self.inner.clone(),
+			backend: PhantomData,
+			_phantom: PhantomData,
+		}
+	}
+}
+
+#[async_trait::async_trait]
+impl<BE, Block: BlockT, Client> BlockImport<Block> for HotstuffBlockImport<BE, Block, Client>
+where
+	NumberFor<Block>: finality_grandpa::BlockNumberOps,
+	BE: Backend<Block>,
+	Client: ClientForHotstuff<Block, BE>,
+	Client::Api: GrandpaApi<Block>,
+	for<'a> &'a Client:
+		BlockImport<Block, Error = ConsensusError, Transaction = TransactionFor<Client, Block>>,
+	TransactionFor<Client, Block>: 'static,
+{
+	type Error = ConsensusError;
+	type Transaction = TransactionFor<Client, Block>;
+
+
+	async fn check_block(
+		&mut self,
+		block: BlockCheckParams<Block>,
+	) -> Result<ImportResult, Self::Error> {
+		self.inner.check_block(block).await
+	}
+
+	async fn import_block(
+		&mut self,
+		mut block: BlockImportParams<Block, Self::Transaction>,
+	) -> Result<ImportResult, Self::Error> {
+		let hash = block.post_hash();
+		let number = *block.header.number();
+
+		println!("🔥👴🏻 import block: hash: {:?} number:{:?}", hash, number);
+		let import_result = (&*self.inner).import_block(block).await;
+
+		let mut imported_aux = {
+			match import_result {
+				Ok(ImportResult::Imported(aux)) => aux,
+				Ok(r) => {
+					return Ok(r)
+				},
+				Err(e) => {
+					return Err(ConsensusError::ClientImport(e.to_string()))
+				},
+			}
+		};
+
+		// TODO
+		Ok(ImportResult::Imported(imported_aux))
+	}
 }
 
 
