@@ -58,6 +58,12 @@ impl<H, N> SharedAuthoritySet<H, N> {
 pub struct AuthoritySetChanges<N>(Vec<(u64, N)>);
 
 
+impl<N: Ord + Clone> AuthoritySetChanges<N> {
+	pub(crate) fn empty() -> Self {
+		Self(Default::default())
+	}
+}
+
 /// A set of authorities.
 #[derive(Debug, Clone, PartialEq)]
 pub struct AuthoritySet<H, N> {
@@ -86,16 +92,16 @@ where
 
 	/// Get a genesis set with given authorities.
 	pub(crate) fn genesis(initial: AuthorityList) -> Option<Self> {
-        // TODO
-        return None
+		if Self::invalid_authority_list(&initial) {
+			return None
+		}
 
-		// Some(AuthoritySet {
-		// 	current_authorities: initial,
-		// 	set_id: 0,
-		// 	pending_standard_changes: ForkTree::new(),
-		// 	pending_forced_changes: Vec::new(),
-		// 	authority_set_changes: AuthoritySetChanges::empty(),
-		// })
+		Some(AuthoritySet {
+			current_authorities: initial,
+			authority_set_changes: AuthoritySetChanges::empty(),
+			_phantom: PhantomData,
+
+		})
 	}
 
 
@@ -104,18 +110,15 @@ where
 		authorities: AuthorityList,
 		authority_set_changes: AuthoritySetChanges<N>,
 	) -> Option<Self> {
-		// if Self::invalid_authority_list(&authorities) {
-		// 	return None
-		// }
+		if Self::invalid_authority_list(&authorities) {
+			return None
+		}
 
-		// Some(AuthoritySet {
-		// 	_phantom: PhantomData<H>,
-		// 	current_authorities: authorities,
-		// 	authority_set_changes,
-		// })
-
-		// TODO
-		return None
+		Some(AuthoritySet {
+			current_authorities: authorities,
+			authority_set_changes,
+			_phantom: PhantomData,
+		})
 	}
 
 }
