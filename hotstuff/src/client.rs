@@ -90,9 +90,9 @@ pub(crate) trait BlockSyncRequester<Block: BlockT> {
 
 /// Link between the block importer and the background voter.
 pub struct LinkHalf<Block: BlockT, C, SC> {
-	client: Arc<C>,
-	select_chain: Option<PhantomData<SC>>,
-	persistent_data: aux_schema::PersistentData<Block>,
+	pub client: Arc<C>,
+	pub select_chain: Option<PhantomData<SC>>,
+	pub(crate) persistent_data: aux_schema::PersistentData<Block>,
 	// voter_commands_rx: TracingUnboundedReceiver<VoterCommand<Block::Hash, NumberFor<Block>>>,
 	// justification_sender: GrandpaJustificationSender<Block>,
 	// justification_stream: GrandpaJustificationStream<Block>,

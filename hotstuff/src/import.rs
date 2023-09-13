@@ -91,7 +91,7 @@ where
 		let hash = block.post_hash();
 		let number = *block.header.number();
 
-		println!("🔥🔥🔥👴🏻 import block: hash: {:?} number:{:?}", hash, number);
+		println!("🔥💃🏻 import block: hash: {:?} number:{:?}", hash, number);
 		let import_result = (&*self.inner).import_block(block).await;
 
 		let mut imported_aux = {

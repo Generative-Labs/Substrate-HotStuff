@@ -16,9 +16,11 @@ pub mod import;
 pub use import::HotstuffBlockImport;
 pub mod network_bridge;
 pub mod client;
+pub mod voter_task;
 pub mod authorities;
 pub use client::{ block_import, LinkHalf };
 
+pub use voter_task::run_hotstuff_voter;
 pub use authorities::SharedAuthoritySet;
 
 #[cfg(test)]
