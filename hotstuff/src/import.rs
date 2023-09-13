@@ -3,10 +3,11 @@ use sc_client_api::Backend;
 use sc_network_gossip::{ValidatorContext, MessageIntent, ValidationResult};
 use sc_telemetry::log::debug;
 use sc_utils::{notification::NotificationSender, mpsc::{TracingUnboundedReceiver, tracing_unbounded}};
+use sp_consensus_hotstuff::HOTSTUFF_ENGINE_ID;
 use sp_core::H256;
 use sp_runtime::{
 	traits::{Block as BlockT, Header as HeaderT, NumberFor, Zero},
-	EncodedJustification,
+	EncodedJustification, Justification,
 };
 use parking_lot::{Mutex, RwLock};
 use sc_network::{PeerId, ReputationChange, ObservedRole};
@@ -17,7 +18,7 @@ use sp_api::TransactionFor;
 
 use sp_consensus_grandpa::GrandpaApi;
 
-use sc_consensus::{BlockImport, ImportResult, BlockImportParams, BlockCheckParams};
+use sc_consensus::{BlockImport, ImportResult, BlockImportParams, BlockCheckParams, JustificationImport};
 use sp_consensus::Error as ConsensusError;
 
 use crate::client::ClientForHotstuff;
@@ -46,6 +47,20 @@ impl<Backend, Block: BlockT, Client> Clone
 		}
 	}
 }
+
+impl<Backend, Block: BlockT, Client> HotstuffBlockImport<Backend, Block, Client>
+{
+	pub fn new(
+		inner: Arc<Client>,
+	) -> HotstuffBlockImport<Backend, Block, Client> {
+		HotstuffBlockImport {
+			inner: inner,
+			backend: PhantomData,
+			_phantom: PhantomData,
+		}
+	}
+}
+
 
 #[async_trait::async_trait]
 impl<BE, Block: BlockT, Client> BlockImport<Block> for HotstuffBlockImport<BE, Block, Client>
@@ -76,7 +91,7 @@ where
 		let hash = block.post_hash();
 		let number = *block.header.number();
 
-		println!("🔥👴🏻 import block: hash: {:?} number:{:?}", hash, number);
+		println!("🔥🔥🔥👴🏻 import block: hash: {:?} number:{:?}", hash, number);
 		let import_result = (&*self.inner).import_block(block).await;
 
 		let mut imported_aux = {
@@ -95,6 +110,79 @@ where
 		Ok(ImportResult::Imported(imported_aux))
 	}
 }
+
+
+impl<BE, Block: BlockT, Client> HotstuffBlockImport<BE, Block, Client>
+where
+	BE: Backend<Block>,
+	Client: ClientForHotstuff<Block, BE>,
+	NumberFor<Block>: finality_grandpa::BlockNumberOps,
+{
+	/// Import a block justification and finalize the block.
+	///
+	/// If `enacts_change` is set to true, then finalizing this block *must*
+	/// enact an authority set change, the function will panic otherwise.
+	fn import_justification(
+		&mut self,
+		hash: Block::Hash,
+		number: NumberFor<Block>,
+		justification: Justification,
+		enacts_change: bool,
+		initial_sync: bool,
+	) -> Result<(), ConsensusError> {
+		// TODO
+
+		// if justification.0 != HOTSTUFF_ENGINE_ID {
+		// 	// TODO: the import queue needs to be refactored to be able dispatch to the correct
+		// 	// `JustificationImport` instance based on `ConsensusEngineId`, or we need to build a
+		// 	// justification import pipeline similar to what we do for `BlockImport`. In the
+		// 	// meantime we'll just drop the justification, since this is only used for BEEFY which
+		// 	// is still WIP.
+		// 	return Ok(())
+		// }
+
+		Ok(())
+	}
+}
+
+
+#[async_trait::async_trait]
+impl<BE, Block: BlockT, Client> JustificationImport<Block>
+	for HotstuffBlockImport<BE, Block, Client>
+where
+	NumberFor<Block>: finality_grandpa::BlockNumberOps,
+	BE: Backend<Block>,
+	Client: ClientForHotstuff<Block, BE>,
+{
+	type Error = ConsensusError;
+
+	async fn import_justification(
+		&mut self,
+		hash: Block::Hash,
+		number: NumberFor<Block>,
+		justification: Justification,
+	) -> Result<(), Self::Error> {
+		// this justification was requested by the sync service, therefore we
+		// are not sure if it should enact a change or not. it could have been a
+		// request made as part of initial sync but that means the justification
+		// wasn't part of the block and was requested asynchronously, probably
+		// makes sense to log in that case.
+		HotstuffBlockImport::import_justification(self, hash, number, justification, false, false)
+	}
+
+	async fn on_start(&mut self) -> Vec<(Block::Hash, NumberFor<Block>)> {
+		let mut out = Vec::new();
+		let chain_info = self.inner.info();
+
+		// TODO
+
+		out
+	}
+}
+
+
+
+
 
 
 struct PeerData<B: Block> {

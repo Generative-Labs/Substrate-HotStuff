@@ -9,11 +9,15 @@ pub mod qc;
 pub mod types;
 pub mod validator;
 pub mod voter;
+pub mod aux_schema;
 // pub mod voting_handler;
 pub mod worker;
 pub mod import;
+pub use import::HotstuffBlockImport;
 pub mod network_bridge;
 pub mod client;
+pub mod authorities;
+pub use client::{ block_import, LinkHalf };
 
 #[cfg(test)]
 mod tests {

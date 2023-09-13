@@ -60,13 +60,15 @@ pub fn new_partial(
 		sc_consensus::DefaultImportQueue<Block, FullClient>,
 		sc_transaction_pool::FullPool<Block, FullClient>,
 		(
-			sc_consensus_grandpafork::GrandpaBlockImport<
-				FullBackend,
-				Block,
-				FullClient,
-				FullSelectChain,
-			>,
-			sc_consensus_grandpafork::LinkHalf<Block, FullClient, FullSelectChain>,
+			// sc_consensus_grandpafork::GrandpaBlockImport<
+			// 	FullBackend,
+			// 	Block,
+			// 	FullClient,
+			// 	FullSelectChain,
+			// >,
+			// sc_consensus_grandpafork::LinkHalf<Block, FullClient, FullSelectChain>,
+			hotstuff::HotstuffBlockImport<FullBackend, Block, FullClient>,
+			hotstuff::LinkHalf<Block, FullClient>,
 			Option<Telemetry>,
 		),
 	>,
@@ -107,11 +109,16 @@ pub fn new_partial(
 		client.clone(),
 	);
 
-	let (grandpa_block_import, grandpa_link) = sc_consensus_grandpafork::block_import(
+	// let (grandpa_block_import, grandpa_link) = sc_consensus_grandpafork::block_import(
+	// 	client.clone(),
+	// 	&client,
+	// 	select_chain.clone(),
+	// 	telemetry.as_ref().map(|x| x.handle()),
+	// )?;
+
+	let (grandpa_block_import, grandpa_link) = hotstuff::block_import(
 		client.clone(),
 		&client,
-		select_chain.clone(),
-		telemetry.as_ref().map(|x| x.handle()),
 	)?;
 
 	let slot_duration = sc_consensus_hotstuff::slot_duration(&*client)?;

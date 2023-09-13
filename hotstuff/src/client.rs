@@ -4,9 +4,10 @@ use sc_client_api::{LockImportRun, Finalizer, AuxStore, BlockchainEvents, Execut
 use sc_consensus::BlockImport;
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::{HeaderMetadata, HeaderBackend, Error as ClientError};
-use sp_runtime::traits::{Block as BlockT, NumberFor};
+use sp_consensus_grandpa::AuthorityList;
+use sp_runtime::traits::{Block as BlockT, NumberFor, Zero};
 
-use crate::{network_bridge::{Network as NetworkT, Syncing as SyncingT, HotstuffNetworkBridge}, import::HotstuffBlockImport};
+use crate::{network_bridge::{Network as NetworkT, Syncing as SyncingT, HotstuffNetworkBridge}, import::HotstuffBlockImport, aux_schema, authorities::SharedAuthoritySet};
 
 
 
@@ -81,30 +82,63 @@ pub(crate) trait BlockSyncRequester<Block: BlockT> {
 // }
 
 /// Persistent data kept between runs.
-pub(crate) struct PersistentData<Block: BlockT> {
-    _phantom: Option<PhantomData<Block>>,
-}
+// pub(crate) struct PersistentData<Block: BlockT> {
+//     _phantom: Option<PhantomData<Block>>,
+// }
 
 /// Link between the block importer and the background voter.
 pub struct LinkHalf<Block: BlockT, C> {
 	client: Arc<C>,
-	persistent_data: PersistentData<Block>,
+	persistent_data: aux_schema::PersistentData<Block>,
 	// voter_commands_rx: TracingUnboundedReceiver<VoterCommand<Block::Hash, NumberFor<Block>>>,
 	// justification_sender: GrandpaJustificationSender<Block>,
 	// justification_stream: GrandpaJustificationStream<Block>,
 	// telemetry: Option<TelemetryHandle>,
 }
 
+impl<Block: BlockT, C> LinkHalf<Block, C> {
+	/// Get the shared authority set.
+	pub fn shared_authority_set(&self) -> &SharedAuthoritySet<Block::Hash, NumberFor<Block>> {
+		&self.persistent_data.authority_set
+	}
+}
 
+
+/// Provider for the Hotstuff authority set configured on the genesis block.
+pub trait GenesisAuthoritySetProvider<Block: BlockT> {
+	/// Get the authority set at the genesis block.
+	fn get(&self) -> Result<AuthorityList, ClientError>;
+}
 
 /// Make block importer and link half necessary to tie the background voter
 /// to it.
 pub fn block_import<BE, Block: BlockT, Client>(
 	client: Arc<Client>,
+	genesis_authorities_provider: &dyn GenesisAuthoritySetProvider<Block>,
 ) -> Result<(HotstuffBlockImport<BE, Block, Client>, LinkHalf<Block, Client>), ClientError>
 where
 	BE: Backend<Block> + 'static,
 	Client: ClientForHotstuff<Block, BE> + 'static,
 {
+	let chain_info = client.info();
+	let genesis_hash = chain_info.genesis_hash;
 
+	let persistent_data =
+		aux_schema::load_persistent(&*client, genesis_hash, <NumberFor<Block>>::zero(),
+			move || {
+				let authorities = genesis_authorities_provider.get()?;
+
+				Ok(authorities)
+			}
+	)?;
+
+	Ok((
+		HotstuffBlockImport::new(
+			client.clone(),
+		),
+		LinkHalf {
+			client,
+			persistent_data,
+		},
+	))
 }
