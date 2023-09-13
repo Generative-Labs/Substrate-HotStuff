@@ -19,6 +19,8 @@ pub mod client;
 pub mod authorities;
 pub use client::{ block_import, LinkHalf };
 
+pub use authorities::SharedAuthoritySet;
+
 #[cfg(test)]
 mod tests {
 	use crypto::Digest;
@@ -83,7 +85,7 @@ use crate::voter::HotstuffVoter;
 		let message: &[u8] = b"Hello, world!";
 		let digest = message.digest();
 		let signature = crypto::Signature::new(&digest, &secret_key);
-		
+
 		let vote_info: VoteMessage<AppPair> = VoteMessage{
 			round_number: 1,
 			block_hash: H256::from_low_u64_be(100_000),

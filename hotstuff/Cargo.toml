@@ -9,10 +9,11 @@ edition = "2021"
 array-bytes = "6.1"
 parking_lot = "0.12.1"
 async-trait = "0.1.57"
+parity-scale-codec = { version = "3.6.1", features = ["derive"] }
 
 futures = "0.3.21"
 tokio = { version = "1.22.0", features = ["rt", "time", "macros", "sync"] }
-codec = { package = "parity-scale-codec", version = "3.6.1", default-features = false }
+# codec = { default-features = false }
 serde = { version = "1.0", features = ["derive"] }
 crypto =  { path="../crypto" }
 sc-basic-authorship = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }

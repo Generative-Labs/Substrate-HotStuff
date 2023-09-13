@@ -189,11 +189,11 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 		grandpa_protocol_name.clone(),
 	));
 
-	let warp_sync = Arc::new(sc_consensus_grandpafork::warp_proof::NetworkProvider::new(
-		backend.clone(),
-		grandpa_link.shared_authority_set().clone(),
-		Vec::default(),
-	));
+	// let warp_sync = Arc::new(sc_consensus_grandpafork::warp_proof::NetworkProvider::new(
+	// 	backend.clone(),
+	// 	grandpa_link.shared_authority_set().clone(),
+	// 	Vec::default(),
+	// ));
 
 	let (network, system_rpc_tx, tx_handler_controller, network_starter, sync_service) =
 		sc_service::build_network(sc_service::BuildNetworkParams {
@@ -204,9 +204,9 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 			spawn_handle: task_manager.spawn_handle(),
 			import_queue,
 			block_announce_validator_builder: None,
-			warp_sync_params: Some(WarpSyncParams::WithProvider(warp_sync)),
+			// warp_sync_params: Some(WarpSyncParams::WithProvider(warp_sync)),
+			warp_sync_params: None,
 		})?;
-	
 
 	// let known_peers = Arc::new(Mutex::new(KnownPeers::new()));
 
@@ -260,7 +260,6 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 			crate::rpc::create_full(deps).map_err(Into::into)
 		})
 	};
-
 
 	let _rpc_handlers = sc_service::spawn_tasks(sc_service::SpawnTasksParams {
 		network: network.clone(),
@@ -345,7 +344,6 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 		// .spawn_blocking("hotstuff-entry", Some("hotstuff"), hotstuff_work);
 
 	}
-
 
 
 	/// imported and generated.

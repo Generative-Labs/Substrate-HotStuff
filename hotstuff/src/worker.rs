@@ -4,7 +4,9 @@ use sp_api::ProvideRuntimeApi;
 use sc_client_api::{backend::AuxStore, BlockOf};
 
 use sp_runtime::traits::{Block as BlockT, Member, NumberFor};
-use codec::Codec;
+
+use parity_scale_codec::Codec;
+
 use sp_blockchain::HeaderBackend;
 pub use sp_consensus::SyncOracle;
 
