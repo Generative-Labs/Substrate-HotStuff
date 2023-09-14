@@ -546,8 +546,8 @@ pub async fn start_slot_worker<B, C, W, SO, CIDP, Proof>(
 		match result {
 			Some(slot_result) => {
 				let block = slot_result.block;
-				println!("🔥 on_slot > Block: {:?}", block);
-				println!("Block hash: {:?}", block.hash());
+				// println!("🔥 on_slot > Block: {:?}", block);
+				println!("🔥 on_slot Block hash: {:?}", block.hash());
 
 				// println!("Storage Proof: {:?}", slot_result.storage_proof);
 			}

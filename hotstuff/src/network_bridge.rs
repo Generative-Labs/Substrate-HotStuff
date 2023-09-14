@@ -105,7 +105,7 @@ impl<B: BlockT> sc_network_gossip::Validator<B> for GossipValidator<B> {
 pub struct HotstuffNetworkBridge<B: BlockT, N: Network<B>, S: Syncing<B>> {
 	service: N,
 	sync: S,
-	gossip_engine: Arc<Mutex<GossipEngine<B>>>,
+	pub gossip_engine: Arc<Mutex<GossipEngine<B>>>,
 }
 
 pub type SetId = u64;

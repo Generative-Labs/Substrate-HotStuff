@@ -20,6 +20,9 @@ pub mod voter_task;
 pub mod authorities;
 pub use client::{ block_import, LinkHalf };
 
+/// The log target to be used by client code.
+pub const CLIENT_LOG_TARGET: &str = "hotstuff";
+
 pub use voter_task::run_hotstuff_voter;
 pub use authorities::SharedAuthoritySet;
 

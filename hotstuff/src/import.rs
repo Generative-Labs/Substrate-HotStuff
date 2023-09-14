@@ -9,19 +9,23 @@ use sp_runtime::{
 	traits::{Block as BlockT, Header as HeaderT, NumberFor, Zero},
 	EncodedJustification, Justification,
 };
+use log;
 use parking_lot::{Mutex, RwLock};
 use sc_network::{PeerId, ReputationChange, ObservedRole};
 use sp_runtime::traits::Block;
 use std::collections::{HashMap, VecDeque};
 use std::marker::PhantomData;
 use sp_api::TransactionFor;
+use sp_blockchain::BlockStatus;
 
 use sp_consensus_grandpa::GrandpaApi;
 
 use sc_consensus::{BlockImport, ImportResult, BlockImportParams, BlockCheckParams, JustificationImport};
-use sp_consensus::Error as ConsensusError;
+use sp_consensus::{Error as ConsensusError};
 
 use crate::client::ClientForHotstuff;
+
+const LOG_TARGET: &str  = "hotstuff";
 
 /// A block-import handler for Hotstuff.
 ///
@@ -92,6 +96,19 @@ where
 		let number = *block.header.number();
 
 		println!("🔥💃🏻 import block: hash: {:?} number:{:?}", hash, number);
+		match self.inner.status(hash) {
+			Ok(BlockStatus::InChain) => {
+				// Strip justifications when re-importing an existing block.
+				let _justifications = block.justifications.take();
+				return (&*self.inner).import_block(block).await
+			},
+			Ok(BlockStatus::Unknown) => {},
+			Err(e) => return Err(ConsensusError::ClientImport(e.to_string())),
+		}
+		// if block.with_state() {
+		// 	return self.import_state(block).await
+		// }
+
 		let import_result = (&*self.inner).import_block(block).await;
 
 		let mut imported_aux = {
@@ -130,6 +147,26 @@ where
 		enacts_change: bool,
 		initial_sync: bool,
 	) -> Result<(), ConsensusError> {
+		// NOTE: lock must be held through writing to DB to avoid race. this lock
+		//       also implicitly synchronizes the check for last finalized number
+		//       below.
+		let client = self.inner.clone();
+		let status = client.info();
+
+		// if number <= status.finalized_number && client.hash(number)? == Some(hash) {
+		// 	// This can happen after a forced change (triggered manually from the runtime when
+		// 	// finality is stalled), since the voter will be restarted at the median last finalized
+		// 	// block, which can be lower than the local best finalized block.
+		// 	log::warn!(target: LOG_TARGET, "Re-finalized block #{:?} ({:?}) in the canonical chain, current best finalized is #{:?}",
+		// 			hash,
+		// 			number,
+		// 			status.finalized_number,
+		// 	);
+	
+		// 	return Ok(())
+		// }
+	
+
 		// TODO
 
 		// if justification.0 != HOTSTUFF_ENGINE_ID {
@@ -140,6 +177,29 @@ where
 		// 	// is still WIP.
 		// 	return Ok(())
 		// }
+
+
+		// let result = finalize_block(
+		// 	self.inner.clone(),
+		// 	&self.authority_set,
+		// 	None,
+		// 	hash,
+		// 	number,
+		// 	justification.into(),
+		// 	initial_sync,
+		// 	Some(&self.justification_sender),
+		// 	self.telemetry.clone(),
+		// );
+		println!("🔥💃🏻 import_justification finalize_block start");
+		let _res: Result<(), sp_blockchain::Error> = self.inner.finalize_block(hash, None, true);
+		match _res {
+			Ok(()) => {
+				println!("🔥💃🏻 success finalize_block");
+			}
+			Err(err) => {
+				println!("🔥💃🏻 finalize_block error: {:?}", err);
+			}
+		}
 
 		Ok(())
 	}

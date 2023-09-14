@@ -1,6 +1,15 @@
-use futures::prelude::*;
-use sc_client_api::Backend;
+use std::marker::PhantomData;
+use std::task::{Context, Poll};
+use std::pin::Pin;
+use std::sync::Arc;
 
+use log::info;
+use futures::{prelude::*, stream::StreamExt};
+use sc_client_api::{Backend, BlockImportNotification};
+use sc_utils::mpsc::TracingUnboundedReceiver;
+use sp_api::HeaderT;
+use sp_core::{Decode ,Encode};
+use sp_runtime::traits::{Block as BlockT, Hash as HashT};
 
 use crate::{
     network_bridge::{
@@ -10,7 +19,6 @@ use crate::{
     },
     LinkHalf, client::ClientForHotstuff
 };
-use sp_runtime::traits::Block as BlockT;
 
 
 pub fn run_hotstuff_voter<Block: BlockT,  BE: 'static, C, N, S, SC>(
@@ -31,19 +39,93 @@ where
 		persistent_data,
 	} = link;
 
-	let _hotstuff_network_bridge = HotstuffNetworkBridge::new(
+	let hotstuff_network_bridge = HotstuffNetworkBridge::new(
 		network.clone(),
 		sync.clone(),
 	);
 
-    let future1 =  future::ready(()) ;
-    let future2 =  future::ready(());
+    println!("🔥💃🏻 start run_hotstuff_voter");
 
-    let voter_work = future1.then(|_| future::pending::<()>());
+    let voter = SimpleVoter::<Block, C, BE, N, S>::new(client, hotstuff_network_bridge);
 
-    let telemetry_task = future2.then(|_| future::pending::<()>());
+    Ok(async move{
+        voter.await;
+    })
+}
+pub struct SimpleVoter<Block: BlockT, C, BE, N, S>
+where
+    BE:Backend<Block> + 'static,
+    C: ClientForHotstuff<Block, BE> + 'static,
+    C::Api: sp_consensus_grandpa::GrandpaApi<Block>,
+    N: NetworkT<Block> + Sync + 'static,
+    S: SyncingT<Block> + Sync + 'static,
+{
+    client: Arc<C>,
+    network: Arc<HotstuffNetworkBridge<Block,N,S>>,
+
+    phantom0: PhantomData<BE>,
+    phantom1: PhantomData<Block>,
+}
 
 
-	println!("hello 🔥💃🏻 run hotstuff voting");
-    Ok(future::select(voter_work, telemetry_task).map(drop))
+impl<Block,C, BE, N, S> SimpleVoter<Block, C, BE, N, S> 
+where
+    Block: BlockT,
+    BE:Backend<Block> + 'static,
+    C: ClientForHotstuff<Block, BE> + 'static,
+    C::Api: sp_consensus_grandpa::GrandpaApi<Block>,
+    N: NetworkT<Block> + Sync + 'static,
+    S: SyncingT<Block> + Sync + 'static,
+{
+    pub fn new(
+        client: Arc<C>,
+        network: HotstuffNetworkBridge<Block, N, S>,
+    )->Self{
+        Self { client,network: Arc::new(network), phantom0: Default::default(), phantom1: Default::default() }
+    }
+
+    // pub fn test(&self){
+    //     let topic = <<Block::Header as HeaderT>::Hashing as HashT>::hash(b"hotstuff vote");
+    //     let mut gossip_msg_receiver = self.network.gossip_engine.lock().messages_for(topic);
+    // }
+}
+
+impl<Block: BlockT,C, BE, N, S>  Future for SimpleVoter<Block, C, BE, N, S> 
+where
+    BE:Backend<Block> + 'static,
+    C: ClientForHotstuff<Block, BE> + 'static,
+    C::Api: sp_consensus_grandpa::GrandpaApi<Block>,
+    N: NetworkT<Block> + Sync + 'static,
+    S: SyncingT<Block> + Sync + 'static,
+{
+    type Output = ();
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        let mut notification: TracingUnboundedReceiver<BlockImportNotification<Block>> = self.client.import_notification_stream();
+        let topic = <<Block::Header as HeaderT>::Hashing as HashT>::hash(b"hotstuff vote");
+        let mut gossip_msg_receiver = self.network.gossip_engine.lock().messages_for(topic);
+
+        loop{
+            match StreamExt::poll_next_unpin(&mut notification, cx){
+                Poll::Ready(None) => todo!(),
+                Poll::Ready(Some(notification)) =>{
+                    let header = notification.header;
+                    info!("~~ voter get block from block_import, header_number {},header_hash:{}", header.number(), header.hash()); 
+                    self.network.gossip_engine.lock().gossip_message(topic, header.hash().encode(), true);
+                }
+                Poll::Pending => {},
+            }
+
+            match StreamExt::poll_next_unpin(&mut gossip_msg_receiver, cx){
+                Poll::Ready(None) => {}
+                Poll::Ready(Some(notification)) => {
+                    let hash: <Block::Header as HeaderT>::Hash = Decode::decode(&mut &notification.message[..]).unwrap();
+                    info!("recv gossip vote message: {}", hash);
+                },
+                Poll::Pending => {
+                    // info!("~~ gossip_msg_receiver is pending");
+                },
+            }
+        }        
+    }
 }
