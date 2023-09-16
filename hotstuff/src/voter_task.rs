@@ -3,7 +3,7 @@ use std::task::{Context, Poll};
 use std::pin::Pin;
 use std::sync::Arc;
 
-use log::info;
+use log::{warn, debug};
 use rand::Rng;
 
 use futures::{prelude::*, stream::StreamExt};
@@ -126,8 +126,8 @@ where
         hash: Block::Hash,
     ){
         match self.client.finalize_block(hash, None, false){
-            Ok(_) => info!("~~ Simple voter finalize block success {}", hash),
-            Err(e) => info!("~~ Simple voter finalize block success {}, error{}", hash, e),
+            Ok(_) => debug!("~~ Simple voter finalize block success {}", hash),
+            Err(e) => debug!("~~ Simple voter finalize block success {}, error{}", hash, e),
         }
     }
 }
@@ -154,8 +154,6 @@ where
         let mut notification: TracingUnboundedReceiver<BlockImportNotification<Block>> = self.client.import_notification_stream();
         let topic = <<Block::Header as HeaderT>::Hashing as HashT>::hash(b"hotstuff/vote");
 
-        info!("&&&!!~~ hotstuff vote topic {}", topic);
-
         let mut gossip_msg_receiver = self.network.gossip_engine.lock().messages_for(topic);
         let mut rng = rand::thread_rng();
 
@@ -164,7 +162,7 @@ where
                 Poll::Ready(None) => {},
                 Poll::Ready(Some(notification)) =>{
                     let header = notification.header;
-                    info!("~~ voter get block from block_import, header_number {},header_hash:{}", header.number(), header.hash()); 
+                    debug!("~~ Simple voter get block from block_import, header_number {},header_hash:{}", header.number(), header.hash()); 
                     
                     // If the gossip engine detects that a message received from the network has already been registered 
                     // or is pending broadcast, it will not be reported to the upper-level receivers.
@@ -176,7 +174,6 @@ where
                         id,
                     };
 
-                    info!("&&&!!~~ hotstuff vote topic {}, message {:#?}", topic, message.encode());
                     self.network.gossip_engine.lock().register_gossip_message(topic, message.encode());
                 }
                 Poll::Pending => {},
@@ -186,11 +183,10 @@ where
                 Poll::Ready(None) => {}
                 Poll::Ready(Some(notification)) => {
                     let message: TestMessage::<Block> = Decode::decode(&mut &notification.message[..]).unwrap();
-                    info!("~~ recv gossip vote message: {:#?}", message);
                     match <<Block as BlockT>::Header as HeaderT>::Hash::decode(&mut &message.hash[..]){
                         Ok(hash) => self.do_finalize_block(hash),
                         Err(e) => {
-                            info!(" decode TestMessage hash failed: {:#?}", e);                            
+                            warn!(" decode `TestMessage` hash failed: {:#?}", e);                            
                         },
                     };
                 },
