@@ -3,7 +3,7 @@ use std::task::{Context, Poll};
 use std::pin::Pin;
 use std::sync::Arc;
 
-use log::{warn, debug};
+use log::{warn, info, debug};
 use rand::Rng;
 
 use futures::{prelude::*, stream::StreamExt};
@@ -126,8 +126,8 @@ where
         hash: Block::Hash,
     ){
         match self.client.finalize_block(hash, None, false){
-            Ok(_) => debug!("~~ Simple voter finalize block success {}", hash),
-            Err(e) => debug!("~~ Simple voter finalize block success {}, error{}", hash, e),
+            Ok(_) => info!("~~ Simple voter finalize block success {}", hash),
+            Err(e) => warn!("~~ Simple voter finalize block success {}, error{}", hash, e),
         }
     }
 }
@@ -159,10 +159,13 @@ where
 
         loop{
             match StreamExt::poll_next_unpin(&mut notification, cx){
-                Poll::Ready(None) => {},
+                Poll::Ready(None) => {
+                    cx.waker().wake_by_ref();
+                    break;
+                },
                 Poll::Ready(Some(notification)) =>{
                     let header = notification.header;
-                    debug!("~~ Simple voter get block from block_import, header_number {},header_hash:{}", header.number(), header.hash()); 
+                    info!("~~ Simple voter get block from block_import, header_number {},header_hash:{}", header.number(), header.hash()); 
                     
                     // If the gossip engine detects that a message received from the network has already been registered 
                     // or is pending broadcast, it will not be reported to the upper-level receivers.
@@ -175,12 +178,16 @@ where
                     };
 
                     self.network.gossip_engine.lock().register_gossip_message(topic, message.encode());
+                    cx.waker().wake_by_ref();
                 }
                 Poll::Pending => {},
             }
             
             match StreamExt::poll_next_unpin(&mut gossip_msg_receiver, cx){
-                Poll::Ready(None) => {}
+                Poll::Ready(None) => {
+                    cx.waker().wake_by_ref();
+                    break;
+                }
                 Poll::Ready(Some(notification)) => {
                     let message: TestMessage::<Block> = Decode::decode(&mut &notification.message[..]).unwrap();
                     match <<Block as BlockT>::Header as HeaderT>::Hash::decode(&mut &message.hash[..]){
@@ -189,12 +196,20 @@ where
                             warn!(" decode `TestMessage` hash failed: {:#?}", e);                            
                         },
                     };
+                    cx.waker().wake_by_ref();
                 },
                 Poll::Pending => {},
             };
 
-            let _ = Future::poll(Pin::new(&mut self.network), cx);
-        }   
+            match Future::poll(Pin::new(&mut self.network), cx){
+                Poll::Ready(_) => {
+                    cx.waker().wake_by_ref();
+                    break;
+                },
+                Poll::Pending => {},
+            }
+        } 
+        Poll::Ready(())  
     }
 }
 

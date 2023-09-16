@@ -199,12 +199,6 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 		hotstuff_protocol_name.clone(),
 	));
 
-	// let warp_sync = Arc::new(sc_consensus_grandpafork::warp_proof::NetworkProvider::new(
-	// 	backend.clone(),
-	// 	grandpa_link.shared_authority_set().clone(),
-	// 	Vec::default(),
-	// ));
-
 	let (network, system_rpc_tx, tx_handler_controller, network_starter, sync_service) =
 		sc_service::build_network(sc_service::BuildNetworkParams {
 			config: &config,
@@ -217,19 +211,6 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 			// warp_sync_params: Some(WarpSyncParams::WithProvider(warp_sync)),
 			warp_sync_params: None,
 		})?;
-
-	// let known_peers = Arc::new(Mutex::new(KnownPeers::new()));
-
-	// let (gossip_validator, _) = GossipValidator::new(known_peers);
-	// let gossip_validator = Arc::new(gossip_validator);
-
-	// let mut gossip_engine = GossipEngine::new(
-	// 	network.clone(),
-	// 	sync_service.clone(),
-	// 	"/hotstuff/whatever",
-	// 	gossip_validator.clone(),
-	// 	None,
-	// );
 
 	if config.offchain_worker.enabled {
 		task_manager.spawn_handle().spawn(
@@ -332,86 +313,17 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 		task_manager
 			.spawn_essential_handle()
 			.spawn_blocking("hotstuff", Some("block-authoring"), hotstuff);
-
-
-
-		// /// start hotstuff
-		// let hotstuff_work = hotstuff_worker::start_hotstuff::<HotstuffPair, _, _, _, _, _, _, _, _>(StartHotstuffParams {
-		// 	client,
-		// 	select_chain,
-		// 	block_import,
-		// 	proposer_factory,
-		// 	force_authoring,
-		// 	keystore: keystore_container.keystore(),
-		// 	sync_oracle: sync_service.clone(),
-		// 	justification_sync_link: sync_service.clone(),
-		// 	telemetry: telemetry.as_ref().map(|x| x.handle()),
-		// 	compatibility_mode: Default::default(),
-		// })?;
-
-		// task_manager
-		// .spawn_essential_handle()
-		// .spawn_blocking("hotstuff-entry", Some("hotstuff"), hotstuff_work);
-
-	}
-
-	task_manager.spawn_essential_handle().spawn_blocking(
-		"hotstuff-voter",
-		None,
-		hotstuff::run_hotstuff_voter(
-			network,
-			grandpa_link,
-			Arc::new(sync_service),
-			hotstuff_protocol_name,
-		)?,
-	);
-
-
-	/// imported and generated.
-	const GRANDPA_JUSTIFICATION_PERIOD: u32 = 512;
-
-	if enable_grandpa {
-				// if the node isn't actively participating in consensus then it doesn't
-		// need a keystore, regardless of which protocol we use below.
-		let keystore = if role.is_authority() { Some(keystore_container.keystore()) } else { None };
-
-		let grandpa_config = sc_consensus_grandpafork::Config {
-			// FIXME #1578 make this available through chainspec
-			gossip_duration: Duration::from_millis(333),
-			justification_period: GRANDPA_JUSTIFICATION_PERIOD,
-			name: Some(name),
-			observer_enabled: false,
-			keystore,
-			local_role: role,
-			telemetry: telemetry.as_ref().map(|x| x.handle()),
-			protocol_name: grandpa_protocol_name,
-		};
-
-		// start the full GRANDPA voter
-		// NOTE: non-authorities could run the GRANDPA observer protocol, but at
-		// this point the full voter should provide better guarantees of block
-		// and vote data availability than the observer. The observer has not
-		// been tested extensively yet and having most nodes in a network run it
-		// could lead to finality stalls.
-		// let grandpa_config = sc_consensus_grandpafork::GrandpaParams {
-		// 	config: grandpa_config,
-		// 	link: grandpa_link,
-		// 	network,
-		// 	sync: Arc::new(sync_service),
-		// 	voting_rule: sc_consensus_grandpafork::VotingRulesBuilder::default().build(),
-		// 	prometheus_registry,
-		// 	shared_voter_state: sc_consensus_grandpafork::SharedVoterState::empty(),
-		// 	telemetry: telemetry.as_ref().map(|x| x.handle()),
-		// 	offchain_tx_pool_factory: OffchainTransactionPoolFactory::new(transaction_pool),
-		// };
-
-		// the GRANDPA voter task is considered infallible, i.e.
-		// if it fails we take down the service with it.
-		// task_manager.spawn_essential_handle().spawn_blocking(
-		// 	"grandpa-voter",
-		// 	None,
-		// 	sc_consensus_grandpafork::run_grandpa_voter(grandpa_config)?,
-		// );
+		
+		task_manager.spawn_essential_handle().spawn_blocking(
+			"hotstuff-voter",
+			None,
+			hotstuff::run_hotstuff_voter(
+				network,
+				grandpa_link,
+				Arc::new(sync_service),
+				hotstuff_protocol_name,
+			)?,
+		);
 	}
 
 	network_starter.start_network();
