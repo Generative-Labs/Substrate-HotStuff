@@ -160,7 +160,6 @@ where
         loop{
             match StreamExt::poll_next_unpin(&mut notification, cx){
                 Poll::Ready(None) => {
-                    cx.waker().wake_by_ref();
                     break;
                 },
                 Poll::Ready(Some(notification)) =>{
@@ -178,14 +177,12 @@ where
                     };
 
                     self.network.gossip_engine.lock().register_gossip_message(topic, message.encode());
-                    cx.waker().wake_by_ref();
                 }
                 Poll::Pending => {},
             }
             
             match StreamExt::poll_next_unpin(&mut gossip_msg_receiver, cx){
                 Poll::Ready(None) => {
-                    cx.waker().wake_by_ref();
                     break;
                 }
                 Poll::Ready(Some(notification)) => {
@@ -196,14 +193,12 @@ where
                             warn!(" decode `TestMessage` hash failed: {:#?}", e);                            
                         },
                     };
-                    cx.waker().wake_by_ref();
                 },
                 Poll::Pending => {},
             };
 
             match Future::poll(Pin::new(&mut self.network), cx){
                 Poll::Ready(_) => {
-                    cx.waker().wake_by_ref();
                     break;
                 },
                 Poll::Pending => {},
