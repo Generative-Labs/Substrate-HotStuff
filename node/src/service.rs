@@ -14,6 +14,8 @@ use sc_network_gossip::GossipEngine;
 use sc_service::{error::Error as ServiceError, Configuration, TaskManager, WarpSyncParams};
 use sc_telemetry::{Telemetry, TelemetryWorker};
 use sc_transaction_pool_api::OffchainTransactionPoolFactory;
+use sc_network::types::ProtocolName;
+
 // use sp_consensus_aura::sr25519::AuthorityPair as AuraPair;
 use sp_consensus_hotstuff::sr25519::AuthorityPair as HotstuffPair;
 
@@ -189,6 +191,14 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 		grandpa_protocol_name.clone(),
 	));
 
+	let hotstuff_protocol_name = hotstuff::voter_task::standard_name(
+		&client.block_hash(0).ok().flatten().expect("Genesis block exists; qed"), 
+		&config.chain_spec);
+
+	net_config.add_notification_protocol(hotstuff::voter_task::hotstuff_peers_set_config(
+		hotstuff_protocol_name.clone(),
+	));
+
 	// let warp_sync = Arc::new(sc_consensus_grandpafork::warp_proof::NetworkProvider::new(
 	// 	backend.clone(),
 	// 	grandpa_link.shared_authority_set().clone(),
@@ -352,6 +362,7 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 			network,
 			grandpa_link,
 			Arc::new(sync_service),
+			hotstuff_protocol_name,
 		)?,
 	);
 

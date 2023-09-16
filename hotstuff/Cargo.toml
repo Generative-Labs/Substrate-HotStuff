@@ -6,11 +6,12 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+log = "0.4.0"
+rand = "0.8"
 array-bytes = "6.1"
 parking_lot = "0.12.1"
 async-trait = "0.1.57"
 parity-scale-codec = { version = "3.6.1", features = ["derive"] }
-log = "0.4.17"
 
 futures = "0.3.21"
 tokio = { version = "1.22.0", features = ["rt", "time", "macros", "sync"] }
@@ -37,6 +38,7 @@ sp-consensus-hotstuff = { path="../primitives/consensus/hotstuff" }
 sp-consensus-grandpa = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 sc-network = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 sc-network-gossip = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
+sc-chain-spec = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 
 libp2p-identity = { version = "0.2.0", features = ["peerid", "ed25519"]}
 scale-info = { version = "2.5.0", default-features = false, features = ["derive"] }
