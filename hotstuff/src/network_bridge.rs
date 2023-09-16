@@ -1,14 +1,20 @@
 use std::{marker::PhantomData, sync::Arc};
+use std::pin::Pin;
+use std::task::{Context, Poll};
 
-use sc_network::{NetworkBlock, NetworkSyncForkRequest, SyncEventStream, PeerId, ObservedRole};
+use futures::prelude::*;
+use log::info;
+use sc_network::{NetworkBlock, NetworkSyncForkRequest, SyncEventStream, PeerId, ObservedRole, ProtocolName};
 use sc_network_gossip::{GossipEngine, Network as GossipNetwork, MessageIntent, ValidatorContext, ValidationResult};
 use sc_utils::mpsc::{tracing_unbounded, TracingUnboundedReceiver};
 use sp_consensus_hotstuff::RoundNumber;
 use sp_runtime::traits::{Block as BlockT, NumberFor, Header as HeaderT, Hash as HashT};
+use sp_core::{Decode ,Encode};
 
 use parking_lot::Mutex;
 
 use crate::import::PeerReport;
+use crate::voter_task::TestMessage;
 
 /// A handle to the network.
 ///
@@ -61,12 +67,26 @@ impl<Block: BlockT> GossipValidator<Block> {
 
 		(val, rx)
 	}
+
+	pub fn do_validate(
+		&self,
+		mut data: &[u8],
+	)->Option<Block::Hash>{
+		match TestMessage::<Block>::decode(&mut data){
+    		Ok(res) => Some(res.topic),
+    		Err(e) => {
+				info!("~~ GossipValidator decode data failed {}", e);
+				None
+			},
+		}
+	}
 }
 
 impl<B: BlockT> sc_network_gossip::Validator<B> for GossipValidator<B> {
 	/// New peer is connected.
-	fn new_peer(&self, _context: &mut dyn ValidatorContext<B>, _who: &PeerId, _role: ObservedRole) {
-		println!("【GossipValidator】:: new_peer PeerId:{}", _who);
+	fn new_peer(&self, context: &mut dyn ValidatorContext<B>, who: &PeerId, _role: ObservedRole) {
+		// println!("~~~~【GossipValidator】:: new_peer PeerId:{}", who);
+		// context.send_message(who, Vec::from("hotstuff send back"));
 	}
 
 	/// New connection is dropped.
@@ -81,11 +101,10 @@ impl<B: BlockT> sc_network_gossip::Validator<B> for GossipValidator<B> {
 		sender: &PeerId,
 		data: &[u8],
 	) -> ValidationResult<B::Hash> {
-        // TODO
-        // ValidationResult::Discard
-
-		let topic = <<B::Header as HeaderT>::Hashing>::hash(b"topic name");
-		ValidationResult::ProcessAndKeep(topic)
+		match self.do_validate(data){
+    		Some(topic) => ValidationResult::ProcessAndKeep(topic),
+    		None => ValidationResult::Discard,
+		}
     }
 
 	/// Produce a closure for validating messages on a given topic.
@@ -97,7 +116,10 @@ impl<B: BlockT> sc_network_gossip::Validator<B> for GossipValidator<B> {
 	fn message_allowed<'a>(
 		&'a self,
 	) -> Box<dyn FnMut(&PeerId, MessageIntent, &B::Hash, &[u8]) -> bool + 'a> {
-		Box::new(move |_who, _intent, _topic, _data| true)
+		Box::new(move |who, _intent, _topic, data|{
+			// println!("message_allowed who: {}, {:#?}", who, data);
+			true
+		})
 	}
 }
 
@@ -115,7 +137,6 @@ pub(crate) fn round_topic<B: BlockT>(round: RoundNumber, set_id: SetId) -> B::Ha
 	<<B::Header as HeaderT>::Hashing as HashT>::hash(format!("{}-{}", set_id, round).as_bytes())
 }
 
-
 impl<B: BlockT, N: Network<B>, S: Syncing<B>> Unpin for HotstuffNetworkBridge<B, N, S> {}
 
 impl<B: BlockT, N: Network<B>, S: Syncing<B>> HotstuffNetworkBridge<B, N, S> {
@@ -123,11 +144,13 @@ impl<B: BlockT, N: Network<B>, S: Syncing<B>> HotstuffNetworkBridge<B, N, S> {
 	/// handle.
 	/// On creation it will register previous rounds' votes with the gossip
 	/// service taken from the VoterSetState.
-	pub fn new(service: N, sync: S) -> Self {
+	pub fn new(
+		service: N,
+		sync: S,
+		protocol_name: ProtocolName,
+	) -> Self {
 		// let protocol = config.protocol_name.clone();
 		println!(">>>HotstuffNetworkBridge start 🔥");
-
-		let protocol = "hotstuff/test";
 
 		let (validator, report_stream) = GossipValidator::new();
 
@@ -135,19 +158,30 @@ impl<B: BlockT, N: Network<B>, S: Syncing<B>> HotstuffNetworkBridge<B, N, S> {
 		let gossip_engine = Arc::new(Mutex::new(GossipEngine::new(
 			service.clone(),
 			sync.clone(),
-			protocol,
+			protocol_name,
 			validator.clone(),
 			None,
 		)));
 
-		// let topic = round_topic::<B>(1, 1);
-
-		let topic = <<B::Header as HeaderT>::Hashing>::hash(b"topic name");
-
-		gossip_engine.lock().register_gossip_message(topic, vec![1, 2]);
-
-		println!(">>>HotstuffNetworkBridge register_gossip_message 🔥");
+		//let topic = <<B::Header as HeaderT>::Hashing>::hash(b"topic name");
+		// gossip_engine.lock().register_gossip_message(topic, vec![1, 2]);
+		// println!(">>>HotstuffNetworkBridge register_gossip_message 🔥");
 
 		HotstuffNetworkBridge { service, sync, gossip_engine }
 	}
+}
+
+impl<B: BlockT, N: Network<B>, S: Syncing<B>> Future for HotstuffNetworkBridge<B, N, S> {
+    type Output = ();
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+		match self.gossip_engine.lock().poll_unpin(cx) {
+        	Poll::Ready(()) =>{
+				return Poll::Ready(())
+			},
+        	Poll::Pending => {},
+        };
+		
+		Poll::Pending
+    }
 }

@@ -747,6 +747,7 @@ where
 	let _hotstuff_network_bridge = HotstuffNetworkBridge::new(
 		network.clone(),
 		sync.clone(),
+		ProtocolName::from("hotstuff_protocol"),
 	);
 
 	let network = NetworkBridge::new(
