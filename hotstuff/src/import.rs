@@ -95,7 +95,7 @@ where
 		let hash = block.post_hash();
 		let number = *block.header.number();
 
-		println!("🔥💃🏻 import block: hash: {:?} number:{:?}", hash, number);
+		println!("🔥 >>> import block: hash: {:?} number:{:?}", hash, number);
 		match self.inner.status(hash) {
 			Ok(BlockStatus::InChain) => {
 				// Strip justifications when re-importing an existing block.

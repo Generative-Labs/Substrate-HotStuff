@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::marker::PhantomData;
 use std::task::{Context, Poll};
 use std::pin::Pin;
@@ -99,6 +100,7 @@ where
 {
     client: Arc<C>,
     network: HotstuffNetworkBridge<Block,N,S>,
+    voted_block_set: HashSet<Block::Hash>,
 
     phantom0: PhantomData<BE>,
     phantom1: PhantomData<Block>,
@@ -118,7 +120,7 @@ where
         client: Arc<C>,
         network: HotstuffNetworkBridge<Block, N, S>,
     )->Self{
-        Self { client, network, phantom0: Default::default(), phantom1: Default::default() }
+        Self { client, network, voted_block_set: HashSet::default() ,phantom0: Default::default(), phantom1: Default::default() }
     }
 
     pub fn do_finalize_block(
@@ -126,8 +128,8 @@ where
         hash: Block::Hash,
     ){
         match self.client.finalize_block(hash, None, false){
-            Ok(_) => info!("~~ Simple voter finalize block success {}", hash),
-            Err(e) => warn!("~~ Simple voter finalize block success {}, error{}", hash, e),
+            Ok(_) => info!(">>> Simple voter finalize block success {}", hash),
+            Err(e) => warn!(">>> Simple voter finalize block success {}, error{}", hash, e),
         }
     }
 }
@@ -164,7 +166,7 @@ where
                 },
                 Poll::Ready(Some(notification)) =>{
                     let header = notification.header;
-                    info!("~~ Simple voter get block from block_import, header_number {},header_hash:{}", header.number(), header.hash()); 
+                    info!(">>> Simple voter get block from block_import, header_number {},header_hash:{}", header.number(), header.hash());
                     
                     // If the gossip engine detects that a message received from the network has already been registered 
                     // or is pending broadcast, it will not be reported to the upper-level receivers.
@@ -188,7 +190,13 @@ where
                 Poll::Ready(Some(notification)) => {
                     let message: TestMessage::<Block> = Decode::decode(&mut &notification.message[..]).unwrap();
                     match <<Block as BlockT>::Header as HeaderT>::Hash::decode(&mut &message.hash[..]){
-                        Ok(hash) => self.do_finalize_block(hash),
+                        Ok(hash) => {
+                            if !self.voted_block_set.contains(&hash){
+                                info!(">>> Hotstuff voter complete the #1 round of voting");
+                                self.voted_block_set.insert(hash);
+                                self.do_finalize_block(hash)
+                            }
+                        },
                         Err(e) => {
                             warn!(" decode `TestMessage` hash failed: {:#?}", e);                            
                         },

@@ -395,7 +395,7 @@ pub trait SimpleSlotWorker<B: BlockT> {
 		let header_hash = header.hash();
 		let parent_hash = *header.parent_hash();
 
-		println!("🔥 >>> header_num: {} header_hash:{} parent_hash:{}", header_num, header_hash, parent_hash);
+		// println!("🔥 >>> start propose: header_num: {} header_hash:{} parent_hash:{}", header_num, header_hash, parent_hash);
 
 		let block_import_params = match self
 			.block_import_params(
@@ -418,7 +418,7 @@ pub trait SimpleSlotWorker<B: BlockT> {
 
 		info!(
 			target: logging_target,
-			"🔖 🔥 Pre-sealed block for proposal at {}. Hash now {:?}, previously {:?}.",
+			"🔥 >>> Pre-sealed block for proposal at {}. Hash now {:?}, previously {:?}.",
 			header_num,
 			block_import_params.post_hash(),
 			header_hash,
@@ -547,7 +547,7 @@ pub async fn start_slot_worker<B, C, W, SO, CIDP, Proof>(
 			Some(slot_result) => {
 				let block = slot_result.block;
 				// println!("🔥 on_slot > Block: {:?}", block);
-				println!("🔥 on_slot Block hash: {:?}", block.hash());
+				println!("🔥 >>> start slot worker: Block hash: {:?}", block.hash());
 
 				// println!("Storage Proof: {:?}", slot_result.storage_proof);
 			}
