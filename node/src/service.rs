@@ -19,7 +19,6 @@ use sc_transaction_pool_api::OffchainTransactionPoolFactory;
 // use sp_consensus_aura::sr25519::AuthorityPair as AuraPair;
 use sp_consensus_hotstuff::sr25519::AuthorityPair as HotstuffPair;
 
-// use sp_runtime::traits::Block as BlockT;
 
 use std::sync::Arc;
 
@@ -322,6 +321,7 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 				grandpa_link,
 				Arc::new(sync_service),
 				hotstuff_protocol_name,
+				keystore_container.keystore(),
 			)?,
 		);
 	}
