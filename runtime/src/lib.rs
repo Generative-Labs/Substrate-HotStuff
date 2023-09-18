@@ -411,18 +411,18 @@ impl_runtime_apis! {
 
 	impl sp_block_builder::BlockBuilder<Block> for Runtime {
 		fn apply_extrinsic(extrinsic: <Block as BlockT>::Extrinsic) -> ApplyExtrinsicResult {
-			log::info!("【sp_block_builder::BlockBuilder】 apply_extrinsic");
+			// log::info!("【sp_block_builder::BlockBuilder】 apply_extrinsic");
 			Executive::apply_extrinsic(extrinsic)
 		}
 
 		fn finalize_block() -> <Block as BlockT>::Header {
-			log::info!("【sp_block_builder::BlockBuilder】 finalize_block");
+			// log::info!("【sp_block_builder::BlockBuilder】 finalize_block");
 
 			Executive::finalize_block()
 		}
 
 		fn inherent_extrinsics(data: sp_inherents::InherentData) -> Vec<<Block as BlockT>::Extrinsic> {
-			log::info!("【sp_block_builder::BlockBuilder】 inherent_extrinsics");
+			// log::info!("【sp_block_builder::BlockBuilder】 inherent_extrinsics");
 
 			data.create_extrinsics()
 		}
@@ -489,7 +489,7 @@ impl_runtime_apis! {
 
 	impl sp_consensus_grandpa::GrandpaApi<Block> for Runtime {
 		fn grandpa_authorities() -> sp_consensus_grandpa::AuthorityList {
-			log::info!("sp_consensus_grandpa=>>> grandpa_authorities");
+			// log::info!("sp_consensus_grandpa=>>> grandpa_authorities");
 			Grandpa::grandpa_authorities()
 		}
 

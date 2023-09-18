@@ -9,7 +9,7 @@ use sp_consensus_grandpa::AuthorityList;
 use sp_core::traits::CallContext;
 use sp_runtime::{traits::{Block as BlockT, NumberFor, Zero}, generic::BlockId};
 
-use crate::{network_bridge::{Network as NetworkT, Syncing as SyncingT, HotstuffNetworkBridge}, import::HotstuffBlockImport, aux_schema, authorities::SharedAuthoritySet};
+use crate::{import::HotstuffBlockImport, aux_schema, authorities::SharedAuthoritySet};
 
 
 

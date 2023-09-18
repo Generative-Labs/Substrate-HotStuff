@@ -9,7 +9,7 @@ use sc_network_gossip::{GossipEngine, Network as GossipNetwork, MessageIntent, V
 use sc_utils::mpsc::{tracing_unbounded, TracingUnboundedReceiver};
 use sp_consensus_hotstuff::RoundNumber;
 use sp_runtime::traits::{Block as BlockT, NumberFor, Header as HeaderT, Hash as HashT};
-use sp_core::{Decode ,Encode};
+use sp_core::Decode;
 
 use parking_lot::Mutex;
 
@@ -62,7 +62,7 @@ impl<Block: BlockT> GossipValidator<Block> {
 	/// `catch_up_enabled` is set to false then the validator will not issue any
 	/// catch up requests (useful e.g. when running just the hotstuff observer).
 	pub(super) fn new() -> (GossipValidator<Block>, TracingUnboundedReceiver<PeerReport>) {
-		let (tx, rx) = tracing_unbounded("mpsc_hotstuff_gossip_validator", 100_000);
+		let (_tx, rx) = tracing_unbounded("mpsc_hotstuff_gossip_validator", 100_000);
 		let val = GossipValidator { _phantom: None };
 
 		(val, rx)
@@ -84,7 +84,7 @@ impl<Block: BlockT> GossipValidator<Block> {
 
 impl<B: BlockT> sc_network_gossip::Validator<B> for GossipValidator<B> {
 	/// New peer is connected.
-	fn new_peer(&self, context: &mut dyn ValidatorContext<B>, who: &PeerId, _role: ObservedRole) {
+	fn new_peer(&self, _context: &mut dyn ValidatorContext<B>, _who: &PeerId, _role: ObservedRole) {
 		// println!("~~~~【GossipValidator】:: new_peer PeerId:{}", who);
 		// context.send_message(who, Vec::from("hotstuff send back"));
 	}
@@ -97,8 +97,8 @@ impl<B: BlockT> sc_network_gossip::Validator<B> for GossipValidator<B> {
 	/// Validate consensus message.
 	fn validate(
 		&self,
-		context: &mut dyn ValidatorContext<B>,
-		sender: &PeerId,
+		_context: &mut dyn ValidatorContext<B>,
+		_sender: &PeerId,
 		data: &[u8],
 	) -> ValidationResult<B::Hash> {
 		match self.do_validate(data){
@@ -116,7 +116,7 @@ impl<B: BlockT> sc_network_gossip::Validator<B> for GossipValidator<B> {
 	fn message_allowed<'a>(
 		&'a self,
 	) -> Box<dyn FnMut(&PeerId, MessageIntent, &B::Hash, &[u8]) -> bool + 'a> {
-		Box::new(move |who, _intent, _topic, data|{
+		Box::new(move |_who, _intent, _topic, _data|{
 			// println!("message_allowed who: {}, {:#?}", who, data);
 			true
 		})
@@ -125,14 +125,15 @@ impl<B: BlockT> sc_network_gossip::Validator<B> for GossipValidator<B> {
 
 /// Bridge between the underlying network service, gossiping hotstuff consensus messages
 pub struct HotstuffNetworkBridge<B: BlockT, N: Network<B>, S: Syncing<B>> {
-	service: N,
-	sync: S,
+	pub service: N,
+	pub sync: S,
 	pub gossip_engine: Arc<Mutex<GossipEngine<B>>>,
 }
 
 pub type SetId = u64;
 
 /// Create a unique topic for a round and set-id combo.
+#[allow(unused)]
 pub(crate) fn round_topic<B: BlockT>(round: RoundNumber, set_id: SetId) -> B::Hash {
 	<<B::Header as HeaderT>::Hashing as HashT>::hash(format!("{}-{}", set_id, round).as_bytes())
 }
@@ -152,7 +153,7 @@ impl<B: BlockT, N: Network<B>, S: Syncing<B>> HotstuffNetworkBridge<B, N, S> {
 		// let protocol = config.protocol_name.clone();
 		println!(">>>HotstuffNetworkBridge start 🔥");
 
-		let (validator, report_stream) = GossipValidator::new();
+		let (validator, _report_stream) = GossipValidator::new();
 
 		let validator = Arc::new(validator);
 		let gossip_engine = Arc::new(Mutex::new(GossipEngine::new(

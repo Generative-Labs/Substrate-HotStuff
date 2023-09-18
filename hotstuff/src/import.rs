@@ -1,19 +1,18 @@
 use std::sync::Arc;
 use sc_client_api::Backend;
-use sc_network_gossip::{ValidatorContext, MessageIntent, ValidationResult};
-use sc_telemetry::log::debug;
-use sc_utils::{notification::NotificationSender, mpsc::{TracingUnboundedReceiver, tracing_unbounded}};
-use sp_consensus_hotstuff::HOTSTUFF_ENGINE_ID;
-use sp_core::H256;
+// use sc_network_gossip::{ValidatorContext, MessageIntent, ValidationResult};
+// use sc_utils::mpsc::{TracingUnboundedReceiver, tracing_unbounded};
+// use sp_consensus_hotstuff::HOTSTUFF_ENGINE_ID;
+// use sp_core::H256;
 use sp_runtime::{
-	traits::{Block as BlockT, Header as HeaderT, NumberFor, Zero},
-	EncodedJustification, Justification,
+	traits::{Block as BlockT, Header as HeaderT, NumberFor},
+	Justification,
 };
-use log;
-use parking_lot::{Mutex, RwLock};
-use sc_network::{PeerId, ReputationChange, ObservedRole};
-use sp_runtime::traits::Block;
-use std::collections::{HashMap, VecDeque};
+
+// use parking_lot::Mutex;
+use sc_network::{PeerId, ReputationChange};
+// use sp_runtime::traits::Block;
+// use std::collections::HashMap;
 use std::marker::PhantomData;
 use sp_api::TransactionFor;
 use sp_blockchain::BlockStatus;
@@ -21,11 +20,11 @@ use sp_blockchain::BlockStatus;
 use sp_consensus_grandpa::GrandpaApi;
 
 use sc_consensus::{BlockImport, ImportResult, BlockImportParams, BlockCheckParams, JustificationImport};
-use sp_consensus::{Error as ConsensusError};
+use sp_consensus::Error as ConsensusError;
 
 use crate::client::ClientForHotstuff;
 
-const LOG_TARGET: &str  = "hotstuff";
+// const LOG_TARGET: &str  = "hotstuff";
 
 /// A block-import handler for Hotstuff.
 ///
@@ -95,7 +94,7 @@ where
 		let hash = block.post_hash();
 		let number = *block.header.number();
 
-		println!("🔥💃🏻 import block: hash: {:?} number:{:?}", hash, number);
+		println!("🔥 >>> import block: hash: {:?} number:{:?}", hash, number);
 		match self.inner.status(hash) {
 			Ok(BlockStatus::InChain) => {
 				// Strip justifications when re-importing an existing block.
@@ -111,7 +110,7 @@ where
 
 		let import_result = (&*self.inner).import_block(block).await;
 
-		let mut imported_aux = {
+		let mut _imported_aux = {
 			match import_result {
 				Ok(ImportResult::Imported(aux)) => aux,
 				Ok(r) => {
@@ -124,7 +123,7 @@ where
 		};
 
 		// TODO
-		Ok(ImportResult::Imported(imported_aux))
+		Ok(ImportResult::Imported(_imported_aux))
 	}
 }
 
@@ -142,16 +141,16 @@ where
 	fn import_justification(
 		&mut self,
 		hash: Block::Hash,
-		number: NumberFor<Block>,
-		justification: Justification,
-		enacts_change: bool,
-		initial_sync: bool,
+		_number: NumberFor<Block>,
+		_justification: Justification,
+		_enacts_change: bool,
+		_initial_sync: bool,
 	) -> Result<(), ConsensusError> {
 		// NOTE: lock must be held through writing to DB to avoid race. this lock
 		//       also implicitly synchronizes the check for last finalized number
 		//       below.
 		let client = self.inner.clone();
-		let status = client.info();
+		let _status = client.info();
 
 		// if number <= status.finalized_number && client.hash(number)? == Some(hash) {
 		// 	// This can happen after a forced change (triggered manually from the runtime when
@@ -231,12 +230,12 @@ where
 	}
 
 	async fn on_start(&mut self) -> Vec<(Block::Hash, NumberFor<Block>)> {
-		let mut out = Vec::new();
-		let chain_info = self.inner.info();
+		let mut _out = Vec::new();
+		let _chain_info = self.inner.info();
 
 		// TODO
 
-		out
+		_out
 	}
 }
 
@@ -245,85 +244,86 @@ where
 
 
 
-struct PeerData<B: Block> {
-	last_voted_on: NumberFor<B>,
-}
+// struct PeerData<B: Block> {
+// 	last_voted_on: NumberFor<B>,
+// }
 
 
-/// Report specifying a reputation change for a given peer.
+// /// Report specifying a reputation change for a given peer.
 #[derive(Debug, PartialEq)]
 pub(crate) struct PeerReport {
 	pub who: PeerId,
 	pub cost_benefit: ReputationChange,
 }
 
-/// Keep a simple map of connected peers
-/// and the most recent voting round they participated in.
-pub struct KnownPeers<B: Block> {
-	live: HashMap<PeerId, PeerData<B>>,
-}
+// /// Keep a simple map of connected peers
+// /// and the most recent voting round they participated in.
+// pub struct KnownPeers<B: Block> {
+// 	live: HashMap<PeerId, PeerData<B>>,
+// }
 
-impl<B: Block> KnownPeers<B> {
-	pub fn new() -> Self {
-		Self { live: HashMap::new() }
-	}
-}
+// impl<B: Block> KnownPeers<B> {
+// 	pub fn new() -> Self {
+// 		Self { live: HashMap::new() }
+// 	}
+// }
 
-pub(crate) struct GossipValidator<B>
-where
-	B: Block,
-{
+// pub(crate) struct GossipValidator<B>
+// where
+// 	B: Block,
+// {
 
-	known_peers: Arc<Mutex<KnownPeers<B>>>,
-}
-
-
-impl<B> GossipValidator<B>
-where
-	B: Block,
-{
-	pub(crate) fn new(
-		known_peers: Arc<Mutex<KnownPeers<B>>>,
-	) -> (GossipValidator<B>, TracingUnboundedReceiver<PeerReport>) {
-		let (tx, rx) = tracing_unbounded("mpsc_hotstuff_gossip_validator", 10_000);
-		let val = GossipValidator {
-			known_peers,
-		};
-		(val, rx)
-	}
-
-}
+// 	known_peers: Arc<Mutex<KnownPeers<B>>>,
+// }
 
 
-impl<B: BlockT> sc_network_gossip::Validator<B> for GossipValidator<B> {
+// // impl<B> GossipValidator<B>
+// // where
+// // 	B: Block,
+// // {
+// // 	#[allow(unused)]
+// // 	pub(crate) fn new(
+// // 		known_peers: Arc<Mutex<KnownPeers<B>>>,
+// // 	) -> (GossipValidator<B>, TracingUnboundedReceiver<PeerReport>) {
+// // 		let (tx, rx) = tracing_unbounded("mpsc_hotstuff_gossip_validator", 10_000);
+// // 		let val = GossipValidator {
+// // 			known_peers,
+// // 		};
+// // 		(val, rx)
+// // 	}
 
-	/// New peer is connected.
-	fn new_peer(&self, _context: &mut dyn ValidatorContext<B>, _who: &PeerId, _role: ObservedRole) {
-	}
+// // }
 
-	/// New connection is dropped.
-	fn peer_disconnected(&self, _context: &mut dyn ValidatorContext<B>, _who: &PeerId) {}
 
-	/// Validate consensus message.
-	fn validate(
-		&self,
-		context: &mut dyn ValidatorContext<B>,
-		sender: &PeerId,
-		data: &[u8],
-	) -> ValidationResult<B::Hash> {
-		// topic
-		sc_network_gossip::ValidationResult::Discard
-	}
+// // impl<B: BlockT> sc_network_gossip::Validator<B> for GossipValidator<B> {
 
-	/// Produce a closure for validating messages on a given topic.
-	fn message_expired<'a>(&'a self) -> Box<dyn FnMut(B::Hash, &[u8]) -> bool + 'a> {
-		Box::new(move |_topic, _data| false)
-	}
+// // 	/// New peer is connected.
+// // 	fn new_peer(&self, _context: &mut dyn ValidatorContext<B>, _who: &PeerId, _role: ObservedRole) {
+// // 	}
 
-	/// Produce a closure for filtering egress messages.
-	fn message_allowed<'a>(
-		&'a self,
-	) -> Box<dyn FnMut(&PeerId, MessageIntent, &B::Hash, &[u8]) -> bool + 'a> {
-		Box::new(move |_who, _intent, _topic, _data| true)
-	}
-}
+// // 	/// New connection is dropped.
+// // 	fn peer_disconnected(&self, _context: &mut dyn ValidatorContext<B>, _who: &PeerId) {}
+
+// // 	/// Validate consensus message.
+// // 	fn validate(
+// // 		&self,
+// // 		context: &mut dyn ValidatorContext<B>,
+// // 		sender: &PeerId,
+// // 		data: &[u8],
+// // 	) -> ValidationResult<B::Hash> {
+// // 		// topic
+// // 		sc_network_gossip::ValidationResult::Discard
+// // 	}
+
+// // 	/// Produce a closure for validating messages on a given topic.
+// // 	fn message_expired<'a>(&'a self) -> Box<dyn FnMut(B::Hash, &[u8]) -> bool + 'a> {
+// // 		Box::new(move |_topic, _data| false)
+// // 	}
+
+// // 	/// Produce a closure for filtering egress messages.
+// // 	fn message_allowed<'a>(
+// // 		&'a self,
+// // 	) -> Box<dyn FnMut(&PeerId, MessageIntent, &B::Hash, &[u8]) -> bool + 'a> {
+// // 		Box::new(move |_who, _intent, _topic, _data| true)
+// // 	}
+// // }
