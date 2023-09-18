@@ -172,7 +172,7 @@ where
             }   
         }
 
-        Err(HotstuffError::Other("unknown block author".to_string()))
+        Err(HotstuffError::Other(format!("unknown author of block {}", block_header.number())))
     }
 }
 
