@@ -166,7 +166,6 @@ where
                 let author_index = *slot % authorities.len() as u64;
                 
                 if self.key_store.has_keys(&[(authorities[author_index as usize].to_raw_vec(), HOTSTUFF_KEY_TYPE)]){
-                    info!("i'm author for block {}", block_header.number());
                     return Ok(true);
                 }
             }   
