@@ -140,42 +140,6 @@ where
         }
     }
 
-    pub fn get_block_author(&self, block_header: &Block::Header){
-        let authorities = self
-            .client.executor()
-            .call(block_header.hash(), "HotstuffApi_authorities", &[], CallContext::Offchain)
-            .ok();
-
-        if let Some(sets) = authorities{
-            let ids: Vec::<HotstuffId> = Decode::decode(&mut &sets[..]).unwrap();
-
-            let digest = block_header.digest();
-            for iter in digest.logs(){
-                if let Some(mut cons) = iter.as_consensus(){
-                    log::info!("~~~ consensus {:#?}", cons);
-                    if cons.0 == HOTSTUFF_ENGINE_ID {
-                        let slot = Slot::decode(&mut cons.1).unwrap();
-                        let author_index = *slot % ids.len() as u64;
-                        info!("get block author index: {}", author_index);
-                    }
-                }
-
-                if let Some(mut cons) = iter.as_pre_runtime(){
-                    log::info!("~~~ consensus {:#?}", cons);
-                    if cons.0 == HOTSTUFF_ENGINE_ID {
-                        let slot = Slot::decode(&mut cons.1).unwrap();
-                        let author_index = *slot % ids.len() as u64;
-                        info!("get block author index: {}", author_index);
-                        let res = self.key_store.has_keys(&[(ids[author_index as usize].to_raw_vec(), HOTSTUFF_KEY_TYPE)]);
-                        if res{
-                            info!("~~~ im author");
-                        }
-                    }
-                }
-            }    
-        }  
-    }
-
     fn is_block_author(&self, block_header: &Block::Header)->Result<bool, HotstuffError>{
         let authorities_data = self
             .client.executor()
