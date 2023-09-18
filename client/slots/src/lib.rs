@@ -45,7 +45,7 @@ use sp_runtime::traits::{Block as BlockT, HashFor as HashingFor, Header as Heade
 use std::{
 	fmt::Debug,
 	ops::Deref,
-	time::{Duration, Instant}, sync::Arc,
+	time::{Duration, Instant},
 };
 
 const LOG_TARGET: &str = "slots";

@@ -4,7 +4,7 @@ use std::task::{Context, Poll};
 use std::pin::Pin;
 use std::sync::Arc;
 
-use log::{warn, info, debug};
+use log::{warn, info};
 use rand::Rng;
 
 use futures::{prelude::*, stream::StreamExt};
@@ -73,8 +73,7 @@ where
 {
     let LinkHalf {
 		client,
-		select_chain,
-		persistent_data,
+        ..
 	} = link;
 
 	let hotstuff_network_bridge = HotstuffNetworkBridge::new(
@@ -129,7 +128,7 @@ where
     ){
         match self.client.finalize_block(hash, None, false){
             Ok(_) => info!(">>> Simple voter finalize block success {}", hash),
-            Err(e) => warn!(">>> Simple voter finalize block success {}, error{}", hash, e),
+            Err(e) => warn!(">>> Simple voter finalize block {}, error{}", hash, e),
         }
     }
 }

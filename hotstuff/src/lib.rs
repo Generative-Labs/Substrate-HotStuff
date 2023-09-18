@@ -32,12 +32,12 @@ mod tests {
 	use ed25519_dalek::Digest as _;
 	use ed25519_dalek::Sha512;
 
-	use futures::channel::mpsc;
-use libp2p_identity::Keypair;
-use libp2p_identity::PeerId;
-use sc_network_gossip::GossipEngine;
-use sp_api::ApiRef;
-use sp_api::ProvideRuntimeApi;
+// 	use futures::channel::mpsc;
+// use libp2p_identity::Keypair;
+// use libp2p_identity::PeerId;
+// use sc_network_gossip::GossipEngine;
+// use sp_api::ApiRef;
+// use sp_api::ProvideRuntimeApi;
 use sp_core::H256;
 
 	use std::marker::PhantomData;
@@ -45,8 +45,8 @@ use sp_core::H256;
 	use sp_application_crypto::Pair;
 	use sp_application_crypto::ed25519::AppPair;
 
-	use crate::import::GossipValidator;
-use crate::import::KnownPeers;
+// 	use crate::import::GossipValidator;
+// use crate::import::KnownPeers;
 use crate::voter::HotstuffVoter;
 	use crate::leader::HotstuffLeader;
 	use crate::validator::HotstuffValidator;
@@ -145,7 +145,6 @@ use crate::voter::HotstuffVoter;
 
 
 
-	use crate::import;
 	/// block produce test
     use sc_basic_authorship::ProposerFactory;
     use sp_consensus::{Environment, Proposer};
@@ -201,11 +200,12 @@ use crate::voter::HotstuffVoter;
 	use sc_network::ProtocolName;
 	use array_bytes::bytes2hex;
 
-	const GENESIS_HASH: H256 = H256::zero();
+	// const GENESIS_HASH: H256 = H256::zero();
 	const GOSSIP_NAME: &str = "/hotstuff/2";
-	use sp_runtime::traits::NumberFor;
-	use sc_network_test::{Block, Peer, PeersClient, BlockImportAdapter};
 
+	// use sc_network_test::{Block, Peer, PeersClient, BlockImportAdapter};
+
+	#[allow(unused)]
 	pub fn gossip_protocol_name<Hash: AsRef<[u8]>>(
 		genesis_hash: Hash,
 		fork_id: Option<&str>,
@@ -221,15 +221,17 @@ use crate::voter::HotstuffVoter;
 
 	#[derive(Clone)]
 	pub(crate) struct TestApi {
-		pub hotstuff_genesis: u64,
+		pub _hotstuff_genesis: u64,
 	}
 
 	impl TestApi {
+
+		#[allow(unused)]
 		pub fn new(
-			hotstuff_genesis: u64,
+			_hotstuff_genesis: u64,
 		) -> Self {
 			TestApi {
-				hotstuff_genesis,
+				_hotstuff_genesis,
 			}
 		}
 	}

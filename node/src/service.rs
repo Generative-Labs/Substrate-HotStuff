@@ -1,27 +1,27 @@
 //! Service and ServiceFactory implementation. Specialized wrapper over substrate service.
 
 use futures::FutureExt;
-use hotstuff::import::KnownPeers;
+// use hotstuff::import::KnownPeers;
 use node_template_runtime::{self, opaque::Block, RuntimeApi};
 use sc_client_api::{Backend, BlockBackend};
 // use sc_consensus_aura::{ImportQueueParams, StartAuraParams, SlotProportion};
-use sc_consensus_grandpa::{SharedVoterState, ClientForGrandpa};
+// use sc_consensus_grandpa::{SharedVoterState, ClientForGrandpa};
 
 use sc_consensus_hotstuff::{ImportQueueParams, StartHotstuffParams, SlotProportion};
 
 pub use sc_executor::NativeElseWasmExecutor;
-use sc_network_gossip::GossipEngine;
-use sc_service::{error::Error as ServiceError, Configuration, TaskManager, WarpSyncParams};
+// use sc_network_gossip::GossipEngine;
+use sc_service::{error::Error as ServiceError, Configuration, TaskManager};
 use sc_telemetry::{Telemetry, TelemetryWorker};
 use sc_transaction_pool_api::OffchainTransactionPoolFactory;
-use sc_network::types::ProtocolName;
+// use sc_network::types::ProtocolName;
 
 // use sp_consensus_aura::sr25519::AuthorityPair as AuraPair;
 use sp_consensus_hotstuff::sr25519::AuthorityPair as HotstuffPair;
 
-use sp_runtime::traits::{Block as BlockT};
+// use sp_runtime::traits::Block as BlockT;
 
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 
 use sc_consensus_grandpafork;
 use sc_consensus_hotstuff;
@@ -237,8 +237,8 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 
 	let role = config.role.clone();
 	let force_authoring = config.force_authoring;
-	let name = config.network.node_name.clone();
-	let enable_grandpa = !config.disable_grandpa;
+	let _name = config.network.node_name.clone();
+	let _enable_grandpa = !config.disable_grandpa;
 	let prometheus_registry = config.prometheus_registry().cloned();
 
 	let rpc_extensions_builder = {

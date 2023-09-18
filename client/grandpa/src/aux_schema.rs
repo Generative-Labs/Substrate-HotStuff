@@ -474,6 +474,7 @@ pub(crate) fn write_concluded_round<Block: BlockT, B: AuxStore>(
 	backend.insert_aux(&[(&key[..], round_data.encode().as_slice())], &[])
 }
 
+#[allow(unused)]
 #[cfg(test)]
 pub(crate) fn load_authorities<B: AuxStore, H: Decode, N: Decode + Clone + Ord>(
 	backend: &B,

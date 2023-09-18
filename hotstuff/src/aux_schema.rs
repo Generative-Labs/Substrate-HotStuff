@@ -1,7 +1,5 @@
 
-use std::marker::PhantomData;
-
-use sp_blockchain::{Error as ClientError, Result as ClientResult};
+use sp_blockchain::Result as ClientResult;
 use sp_runtime::traits::{Block as BlockT, NumberFor};
 use sc_client_api::backend::AuxStore;
 use sp_consensus_grandpa::AuthorityList;
@@ -14,6 +12,7 @@ pub(crate) struct PersistentData<Block: BlockT> {
 }
 
 /// Load or initialize persistent data from backend.
+#[allow(unused)]
 pub(crate) fn load_persistent<Block: BlockT, B, G>(
 	backend: &B,
 	genesis_hash: Block::Hash,

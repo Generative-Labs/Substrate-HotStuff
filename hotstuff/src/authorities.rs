@@ -46,6 +46,7 @@ impl<H, N> SharedAuthoritySet<H, N> {
 	/// Returns access to the [`AuthoritySet`] and locks it.
 	///
 	/// For more information see [`SharedDataLocked`].
+	#[allow(unused)]
 	pub(crate) fn inner_locked(&self) -> SharedDataLocked<AuthoritySet<H, N>> {
 		self.inner.shared_data_locked()
 	}
@@ -106,6 +107,7 @@ where
 
 
 	/// Create a new authority set.
+	#[allow(unused)]
 	pub(crate) fn new(
 		authorities: AuthorityList,
 		authority_set_changes: AuthoritySetChanges<N>,
