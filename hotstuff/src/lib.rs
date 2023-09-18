@@ -26,6 +26,10 @@ pub const CLIENT_LOG_TARGET: &str = "hotstuff";
 pub use voter_task::run_hotstuff_voter;
 pub use authorities::SharedAuthoritySet;
 
+pub enum HotstuffError {
+	Other(String)
+}
+
 #[cfg(test)]
 mod tests {
 	use crypto::Digest;
