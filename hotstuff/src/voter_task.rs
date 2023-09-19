@@ -20,6 +20,7 @@ use sp_core::{Decode ,Encode, traits::CallContext, ByteArray};
 use sp_runtime::traits::{Block as BlockT, Hash as HashT};
 use sp_keystore::KeystorePtr;
 
+use crate::gossip;
 use crate::{
     network_bridge::{
         HotstuffNetworkBridge,
@@ -175,13 +176,6 @@ where
     }
 }
 
-// TestMessage will be replace hotstuff protocol message
-#[derive(Encode, Decode, Debug)]
-pub struct TestMessage<Block: BlockT>{
-    pub topic: Block::Hash,
-    pub hash: Vec<u8>,
-    pub id: u64,
-}
 
 impl<Block: BlockT,C, BE, N, S> Future for SimpleVoter<Block, C, BE, N, S> 
 where
@@ -215,17 +209,24 @@ where
                     // or is pending broadcast, it will not be reported to the upper-level receivers.
                     // The use of random numbers here is only for testing purposes.
                     let id: u64 = rng.gen_range(1..=100000); 
-                    let message = TestMessage::<Block>{
+                    // let message = gossip::GossipMessage::<Block>{
+                    //     topic,
+                    //     hash: header.hash().encode().to_vec(),
+                    //     id,
+                    // };
+
+                    let consensus_message = gossip::GossipMessage::Consensus(gossip::ConsensusMessage::<Block> {
                         topic,
+                        round: 1,
+                        set_id: 1,
                         hash: header.hash().encode().to_vec(),
-                        id,
-                    };
+                    });
 
                     match self.is_block_author(&header) {
                         Ok(is_author) => {
                             if is_author {
                                 println!("Leader: This block header is authored.");
-                                self.network.gossip_engine.lock().register_gossip_message(topic, message.encode());
+                                self.network.gossip_engine.lock().register_gossip_message(topic, consensus_message.encode());
                             } else {
                                 println!("This block header is not authored.");
                             }
@@ -244,19 +245,60 @@ where
                     break;
                 }
                 Poll::Ready(Some(notification)) => {
-                    let message: TestMessage::<Block> = Decode::decode(&mut &notification.message[..]).unwrap();
-                    match <<Block as BlockT>::Header as HeaderT>::Hash::decode(&mut &message.hash[..]){
-                        Ok(hash) => {
-                            if !self.voted_block_set.contains(&hash){
-                                info!(">>> Hotstuff voter complete the #1 round of voting");
-                                self.voted_block_set.insert(hash);
-                                self.do_finalize_block(hash)
-                            }
+
+
+                    // let message: gossip::GossipMessage::<Block> = Decode::decode(&mut &notification.message[..]).unwrap();
+
+                    // let message = gossip::GossipMessage::Vote(VoteMessage::<Block> {
+                    //     message: signed.clone(),
+                    //     round: Round(self.round),
+                    //     set_id: SetId(self.set_id),
+                    // });
+
+                    let decoded_message = gossip::GossipMessage::<Block>::decode(&mut &notification.message[..]);
+
+
+                    match decoded_message {
+                        Err(ref e) => {
+                            info!("error");
                         },
-                        Err(e) => {
-                            warn!(" decode `TestMessage` hash failed: {:#?}", e);                            
+                        Ok(gossip::GossipMessage::Vote(msg)) => {
+                            info!(">>> 🔥 GossipMessage Vote: {:?}", msg);
+                        },
+                        Ok(gossip::GossipMessage::Consensus(msg)) => {
+                            println!(">>> 🔥 GossipMessage consensus: {:?}", msg);
+
+                            match <<Block as BlockT>::Header as HeaderT>::Hash::decode(&mut &msg.hash[..]){
+                                Ok(hash) => {
+                                    if !self.voted_block_set.contains(&hash){
+                                        info!(">>> Hotstuff voter complete the #1 round of voting");
+                                        self.voted_block_set.insert(hash);
+                                        self.do_finalize_block(hash)
+                                    }
+                                },
+                                Err(e) => {
+                                    warn!("decode `GossipMessage Consensus` hash failed: {:#?}", e);                            
+                                },
+                            };
+                        },
+                        _ => {
+                            info!("Skipping unknown message type");
                         },
                     };
+
+
+                    // match <<Block as BlockT>::Header as HeaderT>::Hash::decode(&mut &message.hash[..]){
+                    //     Ok(hash) => {
+                    //         if !self.voted_block_set.contains(&hash){
+                    //             info!(">>> Hotstuff voter complete the #1 round of voting");
+                    //             self.voted_block_set.insert(hash);
+                    //             self.do_finalize_block(hash)
+                    //         }
+                    //     },
+                    //     Err(e) => {
+                    //         warn!(" decode `GossipMessage` hash failed: {:#?}", e);                            
+                    //     },
+                    // };
                 },
                 Poll::Pending => {},
             };

@@ -13,8 +13,8 @@ use sp_core::Decode;
 
 use parking_lot::Mutex;
 
+use crate::gossip;
 use crate::import::PeerReport;
-use crate::voter_task::TestMessage;
 
 /// A handle to the network.
 ///
@@ -72,8 +72,9 @@ impl<Block: BlockT> GossipValidator<Block> {
 		&self,
 		mut data: &[u8],
 	)->Option<Block::Hash>{
-		match TestMessage::<Block>::decode(&mut data){
-    		Ok(res) => Some(res.topic),
+		match gossip::GossipMessage::<Block>::decode(&mut data){
+			Ok(gossip::GossipMessage::Vote(res)) => Some(res.topic),
+			Ok(gossip::GossipMessage::Consensus(res)) => Some(res.topic),
     		Err(e) => {
 				info!("~~ GossipValidator decode data failed {}", e);
 				None

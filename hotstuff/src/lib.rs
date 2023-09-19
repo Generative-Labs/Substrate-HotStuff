@@ -18,6 +18,8 @@ pub mod network_bridge;
 pub mod client;
 pub mod voter_task;
 pub mod authorities;
+pub mod gossip;
+
 pub use client::{ block_import, LinkHalf };
 
 /// The log target to be used by client code.
