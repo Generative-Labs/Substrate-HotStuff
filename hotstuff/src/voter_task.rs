@@ -197,6 +197,8 @@ where
         let mut notification: TracingUnboundedReceiver<BlockImportNotification<Block>> = self.client.import_notification_stream();
         let topic = <<Block::Header as HeaderT>::Hashing as HashT>::hash(b"hotstuff/vote");
 
+        info!("local peer id {}", self.network.local_peer_id());
+
         let mut gossip_msg_receiver = self.network.gossip_engine.lock().messages_for(topic);
         let mut rng = rand::thread_rng();
 

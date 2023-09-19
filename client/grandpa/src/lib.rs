@@ -135,8 +135,6 @@ pub use sp_consensus_grandpa::{
 };
 use std::marker::PhantomData;
 
-use hotstuff::network_bridge::HotstuffNetworkBridge;
-
 // #[cfg(test)]
 // mod tests;
 
@@ -744,12 +742,6 @@ where
 		telemetry: _,
 	} = link;
 
-	let _hotstuff_network_bridge = HotstuffNetworkBridge::new(
-		network.clone(),
-		sync.clone(),
-		ProtocolName::from("hotstuff_protocol"),
-	);
-
 	let network = NetworkBridge::new(
 		network,
 		sync,
@@ -758,9 +750,6 @@ where
 		prometheus_registry.as_ref(),
 		telemetry.clone(),
 	);
-
-
-
 
 	let conf = config.clone();
 	let telemetry_task =
