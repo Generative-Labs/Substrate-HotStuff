@@ -134,7 +134,7 @@ where
         &self,
         hash: Block::Hash,
     ){
-        match self.client.finalize_block(hash, None, false){
+        match self.client.finalize_block(hash, None, true){
             Ok(_) => info!(">>> Simple voter finalize block success {}", hash),
             Err(e) => warn!(">>> Simple voter finalize block {}, error{}", hash, e),
         }
@@ -209,7 +209,7 @@ where
                 Poll::Ready(Some(notification)) =>{
                     let header = notification.header;
                     info!(">>> Simple voter get block from block_import, header_number {},header_hash:{}", header.number(), header.hash());
-                    
+
                     // If the gossip engine detects that a message received from the network has already been registered 
                     // or is pending broadcast, it will not be reported to the upper-level receivers.
                     // The use of random numbers here is only for testing purposes.
@@ -220,9 +220,20 @@ where
                         id,
                     };
 
-                    self.is_block_author(&header);
-
-                    self.network.gossip_engine.lock().register_gossip_message(topic, message.encode());
+                    match self.is_block_author(&header) {
+                        Ok(is_author) => {
+                            if is_author {
+                                println!("Leader: This block header is authored.");
+                                self.network.gossip_engine.lock().register_gossip_message(topic, message.encode());
+                            } else {
+                                println!("This block header is not authored.");
+                            }
+                        }
+                        Err(_err) => {
+                            println!("is_block_author error")
+                            // println!("Error: {:#?}", err);
+                        }
+                    }
                 }
                 Poll::Pending => {},
             }

@@ -13,4 +13,3 @@ pub trait HotstuffValidator<P: Pair> {
     // As a validator; Validate  consensus message gossip from leader
     fn validate_consensus_message(&self, consensus_msg: &ConsensusMessage) -> bool;
 }
-
