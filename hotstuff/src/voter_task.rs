@@ -166,13 +166,12 @@ where
                 let author_index = *slot % authorities.len() as u64;
                 
                 if self.key_store.has_keys(&[(authorities[author_index as usize].to_raw_vec(), HOTSTUFF_KEY_TYPE)]){
-                    info!("i'm author for block {}", block_header.number());
                     return Ok(true);
                 }
             }   
         }
 
-        Err(HotstuffError::Other("unknown block author".to_string()))
+        Err(HotstuffError::Other(format!("unknown author of block {}", block_header.number())))
     }
 }
 
@@ -197,6 +196,8 @@ where
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
         let mut notification: TracingUnboundedReceiver<BlockImportNotification<Block>> = self.client.import_notification_stream();
         let topic = <<Block::Header as HeaderT>::Hashing as HashT>::hash(b"hotstuff/vote");
+
+        info!("local peer id {}", self.network.local_peer_id());
 
         let mut gossip_msg_receiver = self.network.gossip_engine.lock().messages_for(topic);
         let mut rng = rand::thread_rng();

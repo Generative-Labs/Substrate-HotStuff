@@ -4,7 +4,7 @@ use std::task::{Context, Poll};
 
 use futures::prelude::*;
 use log::info;
-use sc_network::{NetworkBlock, NetworkSyncForkRequest, SyncEventStream, PeerId, ObservedRole, ProtocolName};
+use sc_network::{NetworkBlock, NetworkSyncForkRequest, NetworkStateInfo, SyncEventStream, PeerId, ObservedRole, ProtocolName};
 use sc_network_gossip::{GossipEngine, Network as GossipNetwork, MessageIntent, ValidatorContext, ValidationResult};
 use sc_utils::mpsc::{tracing_unbounded, TracingUnboundedReceiver};
 use sp_consensus_hotstuff::RoundNumber;
@@ -19,12 +19,12 @@ use crate::voter_task::TestMessage;
 /// A handle to the network.
 ///
 /// Something that provides the capabilities needed for the `gossip_network::Network` trait.
-pub trait Network<Block: BlockT>: GossipNetwork<Block> + Clone + Send + 'static {}
+pub trait Network<Block: BlockT>: GossipNetwork<Block> + NetworkStateInfo + Clone + Send + 'static {}
 
 impl<Block, T> Network<Block> for T
 where
 	Block: BlockT,
-	T: GossipNetwork<Block> + Clone + Send + 'static,
+	T: GossipNetwork<Block> + NetworkStateInfo + Clone + Send + 'static,
 {
 }
 
@@ -169,6 +169,10 @@ impl<B: BlockT, N: Network<B>, S: Syncing<B>> HotstuffNetworkBridge<B, N, S> {
 		// println!(">>>HotstuffNetworkBridge register_gossip_message 🔥");
 
 		HotstuffNetworkBridge { service, sync, gossip_engine }
+	}
+
+	pub fn local_peer_id(&self)->PeerId{
+		self.service.local_peer_id()
 	}
 }
 
