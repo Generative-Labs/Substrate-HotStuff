@@ -4,11 +4,13 @@ use std::task::{Context, Poll};
 use std::pin::Pin;
 use std::sync::Arc;
 
+use sc_network::PeerId;
 use log::{warn, info};
 use rand::Rng;
 
 use futures::{prelude::*, stream::StreamExt};
 use sc_client_api::{Backend, BlockImportNotification};
+use sc_network_gossip::TopicNotification;
 use sc_utils::mpsc::TracingUnboundedReceiver;
 use sc_network::types::ProtocolName;
 use sc_chain_spec::ChainSpec;
@@ -123,6 +125,7 @@ where
     N: NetworkT<Block> + Sync + 'static,
     S: SyncingT<Block> + Sync + 'static,
 {
+
     pub fn new(
         client: Arc<C>,
         network: HotstuffNetworkBridge<Block, N, S>,
@@ -174,6 +177,131 @@ where
 
         Err(HotstuffError::Other(format!("unknown author of block {}", block_header.number())))
     }
+
+
+    fn income_message_handler(&mut self, notification: TopicNotification) {
+        // let message: gossip::GossipMessage::<Block> = Decode::decode(&mut &notification.message[..]).unwrap();
+
+        // let message = gossip::GossipMessage::Vote(VoteMessage::<Block> {
+        //     message: signed.clone(),
+        //     round: Round(self.round),
+        //     set_id: SetId(self.set_id),
+        // });
+
+        let decoded_message = gossip::GossipMessage::<Block>::decode(&mut &notification.message[..]);
+
+        match decoded_message {
+            Err(ref e) => {
+                info!("error");
+            },
+            Ok(gossip::GossipMessage::Vote(msg)) => {
+                let _sender_id = PeerId::from_bytes(&msg.peer_id);
+                match _sender_id {
+                    Ok(peer_id) => {
+                        info!("🙌 GossipMessage Vote from:{:?} <<< topic: {:?}", peer_id, msg.topic);
+                    }
+                    Err(err) => {
+                        eprintln!(">>> 🙌 GossipMessage Vote from Error: {}", err);
+                    }
+                }
+            },
+            Ok(gossip::GossipMessage::Consensus(msg)) => {
+                println!(">>> 🔥 GossipMessage consensus: {:?}", msg.topic);
+
+                match <<Block as BlockT>::Header as HeaderT>::Hash::decode(&mut &msg.block_hash[..]){
+                    Ok(hash) => {
+                        if !self.voted_block_set.contains(&hash){
+                            info!(">>> Hotstuff voter complete the #1 round of voting");
+                            self.voted_block_set.insert(hash);
+                            self.do_finalize_block(hash)
+                        }
+                    },
+                    Err(e) => {
+                        warn!("decode `GossipMessage Consensus` hash failed: {:#?}", e);                            
+                    },
+                };
+
+                // Send vote to leader
+                let vote_message = gossip::GossipMessage::Vote(gossip::VoteMessage::<Block> {
+                    topic: msg.topic,
+                    round: 1,
+                    peer_id: self.network.local_peer_id().to_bytes(),
+                    block_hash: msg.block_hash,
+                });
+
+                let sender_peer_id = PeerId::from_bytes(&msg.peer_id);
+
+                match sender_peer_id {
+                    Ok(peer_id) => {
+                        info!("🔥 Send Vote message to:{:?}", peer_id);
+                        self.network.gossip_engine.lock().send_message(vec![peer_id], vote_message.encode());
+                    }
+                    Err(err) => {
+                        eprintln!("Error: {}", err);
+                    }
+                }
+
+            },
+            _ => {
+                info!("Skipping unknown message type");
+            },
+        };
+
+
+        // match <<Block as BlockT>::Header as HeaderT>::Hash::decode(&mut &message.hash[..]){
+        //     Ok(hash) => {
+        //         if !self.voted_block_set.contains(&hash){
+        //             info!(">>> Hotstuff voter complete the #1 round of voting");
+        //             self.voted_block_set.insert(hash);
+        //             self.do_finalize_block(hash)
+        //         }
+        //     },
+        //     Err(e) => {
+        //         warn!(" decode `GossipMessage` hash failed: {:#?}", e);                            
+        //     },
+        // };
+    }
+
+    fn block_import_handler(&self, notification: BlockImportNotification<Block>) {
+        let header = notification.header;
+        info!(">>> Simple voter get block from block_import, header_number {},header_hash:{}", header.number(), header.hash());
+
+        let mut rng = rand::thread_rng();
+
+        // If the gossip engine detects that a message received from the network has already been registered 
+        // or is pending broadcast, it will not be reported to the upper-level receivers.
+        // The use of random numbers here is only for testing purposes.
+        let id: u64 = rng.gen_range(1..=100000); 
+        // let message = gossip::GossipMessage::<Block>{
+        //     topic,
+        //     hash: header.hash().encode().to_vec(),
+        //     id,
+        // };
+        let topic: <Block as BlockT>::Hash = <<Block::Header as HeaderT>::Hashing as HashT>::hash(b"hotstuff/vote");
+        
+        let consensus_message = gossip::GossipMessage::Consensus(gossip::ConsensusMessage::<Block> {
+            topic: topic,
+            round: 1,
+            peer_id: self.network.local_peer_id().to_bytes(),
+            block_hash: header.hash().encode().to_vec(),
+        });
+
+        match self.is_block_author(&header) {
+            Ok(is_author) => {
+                if is_author {
+                    println!("Leader: This block header is authored.");
+                    self.network.gossip_engine.lock().register_gossip_message(topic, consensus_message.encode());
+                } else {
+                    println!("This block header is not authored.");
+                }
+            }
+            Err(_err) => {
+                println!("is_block_author error")
+                // println!("Error: {:#?}", err);
+            }
+        }
+    }
+
 }
 
 
@@ -191,10 +319,12 @@ where
         let mut notification: TracingUnboundedReceiver<BlockImportNotification<Block>> = self.client.import_notification_stream();
         let topic = <<Block::Header as HeaderT>::Hashing as HashT>::hash(b"hotstuff/vote");
 
-        info!("local peer id {}", self.network.local_peer_id());
+        let local_peerid = self.network.local_peer_id();
+        info!("local peer id {}", local_peerid);
+
 
         let mut gossip_msg_receiver = self.network.gossip_engine.lock().messages_for(topic);
-        let mut rng = rand::thread_rng();
+        // let mut rng = rand::thread_rng();
 
         loop{
             match StreamExt::poll_next_unpin(&mut notification, cx){
@@ -202,103 +332,17 @@ where
                     break;
                 },
                 Poll::Ready(Some(notification)) =>{
-                    let header = notification.header;
-                    info!(">>> Simple voter get block from block_import, header_number {},header_hash:{}", header.number(), header.hash());
-
-                    // If the gossip engine detects that a message received from the network has already been registered 
-                    // or is pending broadcast, it will not be reported to the upper-level receivers.
-                    // The use of random numbers here is only for testing purposes.
-                    let id: u64 = rng.gen_range(1..=100000); 
-                    // let message = gossip::GossipMessage::<Block>{
-                    //     topic,
-                    //     hash: header.hash().encode().to_vec(),
-                    //     id,
-                    // };
-
-                    let consensus_message = gossip::GossipMessage::Consensus(gossip::ConsensusMessage::<Block> {
-                        topic,
-                        round: 1,
-                        set_id: 1,
-                        hash: header.hash().encode().to_vec(),
-                    });
-
-                    match self.is_block_author(&header) {
-                        Ok(is_author) => {
-                            if is_author {
-                                println!("Leader: This block header is authored.");
-                                self.network.gossip_engine.lock().register_gossip_message(topic, consensus_message.encode());
-                            } else {
-                                println!("This block header is not authored.");
-                            }
-                        }
-                        Err(_err) => {
-                            println!("is_block_author error")
-                            // println!("Error: {:#?}", err);
-                        }
-                    }
+                    self.block_import_handler(notification);
                 }
                 Poll::Pending => {},
             }
-            
+
             match StreamExt::poll_next_unpin(&mut gossip_msg_receiver, cx){
                 Poll::Ready(None) => {
                     break;
                 }
                 Poll::Ready(Some(notification)) => {
-
-
-                    // let message: gossip::GossipMessage::<Block> = Decode::decode(&mut &notification.message[..]).unwrap();
-
-                    // let message = gossip::GossipMessage::Vote(VoteMessage::<Block> {
-                    //     message: signed.clone(),
-                    //     round: Round(self.round),
-                    //     set_id: SetId(self.set_id),
-                    // });
-
-                    let decoded_message = gossip::GossipMessage::<Block>::decode(&mut &notification.message[..]);
-
-
-                    match decoded_message {
-                        Err(ref e) => {
-                            info!("error");
-                        },
-                        Ok(gossip::GossipMessage::Vote(msg)) => {
-                            info!(">>> 🔥 GossipMessage Vote: {:?}", msg);
-                        },
-                        Ok(gossip::GossipMessage::Consensus(msg)) => {
-                            println!(">>> 🔥 GossipMessage consensus: {:?}", msg);
-
-                            match <<Block as BlockT>::Header as HeaderT>::Hash::decode(&mut &msg.hash[..]){
-                                Ok(hash) => {
-                                    if !self.voted_block_set.contains(&hash){
-                                        info!(">>> Hotstuff voter complete the #1 round of voting");
-                                        self.voted_block_set.insert(hash);
-                                        self.do_finalize_block(hash)
-                                    }
-                                },
-                                Err(e) => {
-                                    warn!("decode `GossipMessage Consensus` hash failed: {:#?}", e);                            
-                                },
-                            };
-                        },
-                        _ => {
-                            info!("Skipping unknown message type");
-                        },
-                    };
-
-
-                    // match <<Block as BlockT>::Header as HeaderT>::Hash::decode(&mut &message.hash[..]){
-                    //     Ok(hash) => {
-                    //         if !self.voted_block_set.contains(&hash){
-                    //             info!(">>> Hotstuff voter complete the #1 round of voting");
-                    //             self.voted_block_set.insert(hash);
-                    //             self.do_finalize_block(hash)
-                    //         }
-                    //     },
-                    //     Err(e) => {
-                    //         warn!(" decode `GossipMessage` hash failed: {:#?}", e);                            
-                    //     },
-                    // };
+                    self.income_message_handler(notification);
                 },
                 Poll::Pending => {},
             };
@@ -310,8 +354,9 @@ where
                 Poll::Pending => {},
             }
         } 
-        Poll::Ready(())  
+        Poll::Ready(())
     }
+
 }
 
 impl<Block: BlockT,C, BE, N, S> Unpin for SimpleVoter<Block, C, BE, N, S> 

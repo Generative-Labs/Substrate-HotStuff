@@ -1,4 +1,5 @@
 use parity_scale_codec::{Encode, Decode};
+use sc_network::PeerId;
 use sp_runtime::traits::Block as BlockT;
 
 
@@ -10,9 +11,8 @@ pub(super) struct ConsensusMessage<Block: BlockT> {
 	/// The round this message is from.
 	pub(super) round: u64,
 	/// The voter set ID this message is from.
-	pub(super) set_id: u64,
-
-	pub hash: Vec<u8>,
+	pub peer_id: Vec<u8>,
+	pub block_hash: Vec<u8>,
 }
 
 
@@ -31,7 +31,8 @@ pub(super) struct VoteMessage<Block: BlockT> {
 	/// The round this message is from.
 	pub(super) round: u64,
 	/// The voter set ID this message is from.
-	pub(super) set_id: u64,
+	pub peer_id: Vec<u8>,
+	pub block_hash: Vec<u8>,
 	// The message itself.
 	// pub(super) message: SignedMessage<Block::Header>,
 }
