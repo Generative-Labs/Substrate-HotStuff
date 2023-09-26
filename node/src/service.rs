@@ -314,7 +314,7 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 		task_manager.spawn_essential_handle().spawn_blocking(
 			"hotstuff-voter",
 			None,
-			hotstuff::run_hotstuff_voter(
+			hotstuff::voter_task::run_hotstuff_voter(
 				network,
 				grandpa_link,
 				Arc::new(sync_service),
