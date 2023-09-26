@@ -26,11 +26,10 @@ use sp_keystore::KeystorePtr;
 use sp_runtime::traits::{Block as BlockT, Hash as HashT};
 
 use crate::{
-	client::ClientForHotstuff,
+	client::{ClientForHotstuff, LinkHalf},
 	gossip,
 	network_bridge::{HotstuffNetworkBridge, Network as NetworkT, Syncing as SyncingT},
 	primitives::HotstuffError,
-	LinkHalf,
 };
 
 pub(crate) const NAME: &str = "/hotstuff";

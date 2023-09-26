@@ -30,7 +30,8 @@ impl<Block: BlockT> QC<Block> {
 	}
 
 	// Verify if the number of votes in the QC has exceeded (2/3 + 1) of the total authorities.
-	// We are currently not considering the weight of authorities. So a valid QC contains at least 4 votes.
+	// We are currently not considering the weight of authorities. So a valid QC contains at least 4
+	// votes.
 	pub fn verify(&self, authorities: AuthorityList) -> Result<(), HotstuffError> {
 		let mut used = HashSet::<AuthorityId>::new();
 		let mut grant_votes = 0;
@@ -61,13 +62,59 @@ impl<Block: BlockT> QC<Block> {
 // HotstuffBlock
 #[derive(Debug, Encode, Decode)]
 pub struct HotstuffBlock<Block: BlockT> {
-	pub hash: Block::Hash,
+	// QC of parent block.
 	pub qc: QC<Block>,
+	// Hash of current block.
+	pub hash: Block::Hash,
 	pub view: ViewNumber,
+	// The authority id of current hotstuff block author,
+	// which is not the origin block producer.
 	pub author: AuthorityId,
+	// Signature of current block digest.
 	pub signature: AuthoritySignature,
 }
 
+impl<Block: BlockT> HotstuffBlock<Block> {
+	pub fn new(
+		qc: QC<Block>,
+		hash: Block::Hash,
+		view: ViewNumber,
+		author: AuthorityId,
+		signature: AuthoritySignature,
+	) -> Self {
+		HotstuffBlock { qc, hash, view, author, signature }
+	}
+
+	pub fn parent_hash(&self) -> Block::Hash {
+		self.qc.hash
+	}
+
+	pub fn digest(&self) -> Block::Hash {
+		let mut data = self.author.encode();
+		data.append(&mut self.hash.encode());
+		data.append(&mut self.view.encode());
+		data.append(&mut self.qc.hash.encode());
+
+		<<Block::Header as HeaderT>::Hashing as HashT>::hash_of(&data)
+	}
+
+	pub fn verify(&self, authorities: AuthorityList) -> Result<(), HotstuffError> {
+		authorities
+			.iter()
+			.find(|authority| authority.0 == self.author)
+			.ok_or(HotstuffError::UnknownAuthority(self.author.to_owned()))?;
+
+		if !AuthorityPair::verify(&self.signature, self.digest(), &self.author) {
+			return Err(InvalidSignature(self.author.to_owned()))
+		}
+
+		self.qc.verify(authorities)?;
+
+		Ok(())
+	}
+}
+
+// Vote for a hotstuff block
 #[derive(Debug, Encode, Decode)]
 pub struct Vote<Block: BlockT> {
 	pub hash: Block::Hash,
@@ -76,18 +123,108 @@ pub struct Vote<Block: BlockT> {
 	pub signature: AuthoritySignature,
 }
 
+impl<Block: BlockT> Vote<Block> {
+	pub fn digest(&self) -> Block::Hash {
+		let mut data = self.hash.encode();
+		data.append(&mut self.view.encode());
+
+		<<Block::Header as HeaderT>::Hashing as HashT>::hash_of(&data)
+	}
+
+	pub fn verify(&self, authorities: AuthorityList) -> Result<(), HotstuffError> {
+		authorities
+			.iter()
+			.find(|authority| authority.0 == self.voter)
+			.ok_or(HotstuffError::UnknownAuthority(self.voter.to_owned()))?;
+
+		if !AuthorityPair::verify(&self.signature, self.digest(), &self.voter) {
+			return Err(InvalidSignature(self.voter.to_owned()))
+		}
+
+		Ok(())
+	}
+}
+
+// Timeout notification
 #[derive(Debug, Encode, Decode)]
-pub struct Timeout {}
+pub struct Timeout<Block: BlockT> {
+	// The hightest QC of local node.
+	pub high_qc: QC<Block>,
+	// The view of local node at timeout.
+	pub view: ViewNumber,
+	pub author: AuthorityId,
+	pub signature: AuthoritySignature,
+}
+
+impl<Block: BlockT> Timeout<Block> {
+	pub fn digest(&self) -> Block::Hash {
+		let mut data = self.view.encode();
+		data.append(&mut self.high_qc.view.encode());
+
+		<<Block::Header as HeaderT>::Hashing as HashT>::hash_of(&data)
+	}
+
+	pub fn verify(&self, authorities: AuthorityList) -> Result<(), HotstuffError> {
+		authorities
+			.iter()
+			.find(|authority| authority.0 == self.author)
+			.ok_or(HotstuffError::UnknownAuthority(self.author.to_owned()))?;
+
+		if !AuthorityPair::verify(&self.signature, self.digest(), &self.author) {
+			return Err(InvalidSignature(self.author.to_owned()))
+		}
+
+		Ok(())
+	}
+}
 
 #[derive(Debug, Encode, Decode)]
-pub struct TC {}
+pub struct TC<Block: BlockT> {
+	pub view: ViewNumber,
+	pub votes: Vec<(AuthorityId, AuthoritySignature, ViewNumber)>,
+	_phantom: PhantomData<Block>,
+}
+
+impl<Block: BlockT> TC<Block> {
+	pub fn verify(&self, authorities: AuthorityList) -> Result<(), HotstuffError> {
+		let mut used = HashSet::<AuthorityId>::new();
+		let mut grant_votes = 0;
+
+		for (authority_id, _, _) in self.votes.iter() {
+			if used.contains(authority_id) {
+				return Err(AuthorityReuse(authority_id.clone()))
+			}
+			used.insert(authority_id.clone());
+			grant_votes += 1;
+		}
+
+		if grant_votes < 4 || grant_votes <= (authorities.len() * 2 / 3) {
+			return Err(QCRequiresQuorum)
+		}
+
+		self.votes
+			.iter()
+			.find_map(|(id, sig, high_qc_view)| {
+				let mut data = self.view.encode();
+				data.append(&mut high_qc_view.encode());
+				let digest = <<Block::Header as HeaderT>::Hashing as HashT>::hash_of(&data);
+				if !AuthorityPair::verify(sig, digest, id) {
+					return Some(id)
+				}
+				None
+			})
+			.map_or(Ok(()), |err_authority| Err(InvalidSignature(err_authority.to_owned())))?;
+
+		Ok(())
+	}
+}
 
 #[derive(Debug, Encode, Decode)]
 pub enum ConsensusMessage<Block: BlockT> {
 	Propose(HotstuffBlock<Block>),
 	Vote(Vote<Block>),
-	Timeout(Timeout),
-	TC(TC),
+	Timeout(Timeout<Block>),
+	TC(TC<Block>),
 	SyncRequest(Block::Hash, AuthorityId),
 	Phantom(PhantomData<Block>),
 }
@@ -98,9 +235,7 @@ mod tests {
 	use super::*;
 
 	use sc_keystore::LocalKeystore;
-	use sp_consensus_hotstuff::{
-		AuthorityId, AuthorityList, HOTSTUFF_KEY_TYPE,
-	};
+	use sp_consensus_hotstuff::{AuthorityId, AuthorityList, HOTSTUFF_KEY_TYPE};
 	use sp_keystore::KeystorePtr;
 	use sp_runtime::testing::{Header as TestHeader, TestXt};
 
@@ -119,7 +254,6 @@ mod tests {
 
 		authorities
 	}
-
 
 	// TODO some uint tests has same structure. so make table uint tests?
 	#[test]
@@ -152,7 +286,7 @@ mod tests {
 	}
 
 	#[test]
-	fn test_qc_verify_with_insufficient_votes_should_not_work(){
+	fn test_qc_verify_with_insufficient_votes_should_not_work() {
 		let keystore_path = tempfile::tempdir().expect("Creates keystore path");
 		let keystore: KeystorePtr = LocalKeystore::open(keystore_path.path(), None)
 			.expect("Creates keystore")
@@ -181,6 +315,5 @@ mod tests {
 	}
 
 	#[test]
-	fn test_qc_verify_with_repeated_votes_should_not_work(){}
-
+	fn test_qc_verify_with_repeated_votes_should_not_work() {}
 }
