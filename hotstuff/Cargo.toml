@@ -60,6 +60,8 @@ ed25519-dalek = { version = "1.0.1", features = ["batch"] }
 
 [dev-dependencies]
 parking_lot = "0.12.1"
+sc-keystore = { version = "4.0.0-dev",  git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 sc-transaction-pool = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 substrate-test-runtime-client = { version = "2.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 sc-network-test = { version = "0.8.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
+tempfile = "3.8.0"

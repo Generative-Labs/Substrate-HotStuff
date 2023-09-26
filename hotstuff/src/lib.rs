@@ -2,9 +2,9 @@ pub mod message;
 pub mod params;
 
 pub mod aux_schema;
+pub mod import;
 pub mod qc;
 pub mod types;
-pub mod import;
 pub mod worker;
 pub use import::HotstuffBlockImport;
 pub mod authorities;
