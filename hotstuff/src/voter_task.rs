@@ -29,7 +29,8 @@ use crate::{
 	client::ClientForHotstuff,
 	gossip,
 	network_bridge::{HotstuffNetworkBridge, Network as NetworkT, Syncing as SyncingT},
-	HotstuffError, LinkHalf,
+	primitives::HotstuffError,
+	LinkHalf,
 };
 
 pub(crate) const NAME: &str = "/hotstuff";

@@ -1,12 +1,10 @@
+use std::{fmt::Debug, marker::PhantomData, ops::Add};
+
 use finality_grandpa::voter_set::VoterSet;
 use parity_scale_codec::{Decode, Encode};
-use std::{marker::PhantomData, ops::Add};
-
 use parking_lot::MappedMutexGuard;
 use sc_consensus::shared_data::{SharedData, SharedDataLocked};
 use sp_consensus_grandpa::{AuthorityId, AuthorityList};
-
-use std::fmt::Debug;
 
 /// A shared authority set.
 pub struct SharedAuthoritySet<H, N> {
