@@ -99,7 +99,7 @@ mod tests {
 
 	use sc_keystore::LocalKeystore;
 	use sp_consensus_hotstuff::{
-		AuthorityId, AuthorityList, AuthorityPair, AuthoritySignature, HOTSTUFF_KEY_TYPE,
+		AuthorityId, AuthorityList, HOTSTUFF_KEY_TYPE,
 	};
 	use sp_keystore::KeystorePtr;
 	use sp_runtime::testing::{Header as TestHeader, TestXt};
@@ -158,7 +158,7 @@ mod tests {
 			.expect("Creates keystore")
 			.into();
 
-		let authorities = generate_ed25519_authorities(4, &keystore);
+		let authorities = generate_ed25519_authorities(3, &keystore);
 		let mut wight_authorities = AuthorityList::new();
 
 		let test_block =
