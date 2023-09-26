@@ -4,10 +4,9 @@
 // };
 
 use node_template_runtime::{
-	AccountId, BalancesConfig, GrandpaConfig, RuntimeGenesisConfig, Signature,
-	SudoConfig, SystemConfig, WASM_BINARY, pallet_hotstuff
+	pallet_hotstuff, AccountId, BalancesConfig, GrandpaConfig, RuntimeGenesisConfig, Signature,
+	SudoConfig, SystemConfig, WASM_BINARY,
 };
-
 
 use sc_service::ChainType;
 use sp_consensus_hotstuff::sr25519::AuthorityId as HotStuffId;
@@ -63,7 +62,10 @@ pub fn development_config() -> Result<ChainSpec, String> {
 				wasm_binary,
 				// Initial PoA authorities
 				// vec![authority_keys_from_seed("Alice")],
-				vec![hotstuff_authority_keys_from_seed("Alice"), hotstuff_authority_keys_from_seed("Bob")],
+				vec![
+					hotstuff_authority_keys_from_seed("Alice"),
+					hotstuff_authority_keys_from_seed("Bob"),
+				],
 				// Sudo account
 				get_account_id_from_seed::<sr25519::Public>("Alice"),
 				// Pre-funded accounts
@@ -104,7 +106,11 @@ pub fn local_testnet_config() -> Result<ChainSpec, String> {
 				wasm_binary,
 				// Initial PoA authorities
 				// vec![authority_keys_from_seed("Alice"), authority_keys_from_seed("Bob")],
-				vec![hotstuff_authority_keys_from_seed("Alice"), hotstuff_authority_keys_from_seed("Bob"), hotstuff_authority_keys_from_seed("Eve")],
+				vec![
+					hotstuff_authority_keys_from_seed("Alice"),
+					hotstuff_authority_keys_from_seed("Bob"),
+					hotstuff_authority_keys_from_seed("Eve"),
+				],
 				// Sudo account
 				get_account_id_from_seed::<sr25519::Public>("Alice"),
 				// Pre-funded accounts

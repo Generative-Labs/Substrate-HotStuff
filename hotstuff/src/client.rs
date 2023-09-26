@@ -1,17 +1,21 @@
-use std::{sync::Arc, marker::PhantomData};
+use std::{marker::PhantomData, sync::Arc};
 
 use parity_scale_codec::Decode;
-use sc_client_api::{LockImportRun, Finalizer, AuxStore, BlockchainEvents, ExecutorProvider, StorageProvider, TransactionFor, Backend, CallExecutor};
+use sc_client_api::{
+	AuxStore, Backend, BlockchainEvents, CallExecutor, ExecutorProvider, Finalizer, LockImportRun,
+	StorageProvider, TransactionFor,
+};
 use sc_consensus::BlockImport;
 use sp_api::ProvideRuntimeApi;
-use sp_blockchain::{HeaderMetadata, HeaderBackend, Error as ClientError};
+use sp_blockchain::{Error as ClientError, HeaderBackend, HeaderMetadata};
 use sp_consensus_grandpa::AuthorityList;
 use sp_core::traits::CallContext;
-use sp_runtime::{traits::{Block as BlockT, NumberFor, Zero}, generic::BlockId};
+use sp_runtime::{
+	generic::BlockId,
+	traits::{Block as BlockT, NumberFor, Zero},
+};
 
-use crate::{import::HotstuffBlockImport, aux_schema, authorities::SharedAuthoritySet};
-
-
+use crate::{authorities::SharedAuthoritySet, aux_schema, import::HotstuffBlockImport};
 
 /// A trait that includes all the client functionalities hotstuff requires.
 /// Ideally this would be a trait alias, we're not there yet.
@@ -32,7 +36,6 @@ where
 	Block: BlockT,
 {
 }
-
 
 impl<Block, BE, T> ClientForHotstuff<Block, BE> for T
 where
@@ -67,8 +70,8 @@ pub(crate) trait BlockSyncRequester<Block: BlockT> {
 	);
 }
 
-// impl<Block, Network, Syncing> BlockSyncRequester<Block> for HotstuffNetworkBridge<Block, Network, Syncing>
-// where
+// impl<Block, Network, Syncing> BlockSyncRequester<Block> for HotstuffNetworkBridge<Block, Network,
+// Syncing> where
 // 	Block: BlockT,
 // 	Network: NetworkT<Block>,
 // 	Syncing: SyncingT<Block>,
@@ -96,7 +99,7 @@ pub struct LinkHalf<Block: BlockT, C, SC> {
 	// voter_commands_rx: TracingUnboundedReceiver<VoterCommand<Block::Hash, NumberFor<Block>>>,
 	// justification_sender: GrandpaJustificationSender<Block>,
 	// justification_stream: GrandpaJustificationStream<Block>,
-	
+
 	// telemetry: Option<TelemetryHandle>,
 }
 
@@ -112,13 +115,11 @@ impl<Block: BlockT, C, SC> LinkHalf<Block, C, SC> {
 	// }
 }
 
-
 /// Provider for the Hotstuff authority set configured on the genesis block.
 pub trait GenesisAuthoritySetProvider<Block: BlockT> {
 	/// Get the authority set at the genesis block.
 	fn get(&self) -> Result<AuthorityList, ClientError>;
 }
-
 
 impl<Block: BlockT, E, Client> GenesisAuthoritySetProvider<Block> for Arc<Client>
 where
@@ -160,23 +161,19 @@ where
 	let chain_info = client.info();
 	let genesis_hash = chain_info.genesis_hash;
 
-	let persistent_data =
-		aux_schema::load_persistent(&*client, genesis_hash, <NumberFor<Block>>::zero(),
-			move || {
-				let authorities = genesis_authorities_provider.get()?;
+	let persistent_data = aux_schema::load_persistent(
+		&*client,
+		genesis_hash,
+		<NumberFor<Block>>::zero(),
+		move || {
+			let authorities = genesis_authorities_provider.get()?;
 
-				Ok(authorities)
-			}
+			Ok(authorities)
+		},
 	)?;
 
 	Ok((
-		HotstuffBlockImport::new(
-			client.clone(),
-		),
-		LinkHalf {
-			client: client,
-			select_chain: None,
-			persistent_data: persistent_data,
-		},
+		HotstuffBlockImport::new(client.clone()),
+		LinkHalf { client, select_chain: None, persistent_data },
 	))
 }

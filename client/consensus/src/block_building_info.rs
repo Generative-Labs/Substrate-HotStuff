@@ -1,4 +1,3 @@
-
 use crate::BlockT;
 use codec::Encode;
 use sc_cli::Result;
@@ -19,7 +18,7 @@ use sp_timestamp::TimestampInherentData;
 pub trait BlockBuildingInfoProvider<Block: BlockT, ExtraArgs = ()> {
 	type InherentDataProviders: InherentDataProvider;
 
-    // hello
+	// hello
 	async fn get_inherent_providers_and_pre_digest(
 		&self,
 		parent_hash: Block::Hash,

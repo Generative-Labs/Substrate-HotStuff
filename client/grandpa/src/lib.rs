@@ -999,7 +999,6 @@ where
 		&mut self,
 		command: VoterCommand<Block::Hash, NumberFor<Block>>,
 	) -> Result<(), Error> {
-
 		info!(target: LOG_TARGET, "====>>>>handle_voter_command");
 
 		match command {

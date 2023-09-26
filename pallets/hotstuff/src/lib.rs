@@ -81,7 +81,6 @@ pub mod pallet {
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
 
-	
 	#[pallet::config]
 	pub trait Config: pallet_timestamp::Config + frame_system::Config {
 		type WeightInfo: WeightInfo;
@@ -190,7 +189,10 @@ pub mod pallet {
 	#[pallet::genesis_build]
 	impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
 		fn build(&self) {
-			log::info!("【initialize authorities】BuildGenesisConfig::initialize_authorities  {}", self.authorities.len());
+			log::info!(
+				"【initialize authorities】BuildGenesisConfig::initialize_authorities  {}",
+				self.authorities.len()
+			);
 			Pallet::<T>::initialize_authorities(&self.authorities);
 		}
 	}

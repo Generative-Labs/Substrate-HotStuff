@@ -1,4 +1,3 @@
-
 //! Utilities for generating and verifying GRANDPA warp sync proofs.
 
 use sp_runtime::codec::{self, Decode, Encode};

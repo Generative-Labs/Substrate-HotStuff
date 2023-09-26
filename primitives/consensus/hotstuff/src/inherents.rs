@@ -1,4 +1,3 @@
-
 use sp_inherents::{Error, InherentData, InherentIdentifier};
 
 /// The Hotstuff inherent identifier.
@@ -14,7 +13,6 @@ pub trait HotstuffInherentData {
 	/// Replace hotstuff inherent data.
 	fn hotstuff_replace_inherent_data(&mut self, new: InherentType);
 }
-
 
 impl HotstuffInherentData for InherentData {
 	fn hotstuff_inherent_data(&self) -> Result<Option<InherentType>, Error> {

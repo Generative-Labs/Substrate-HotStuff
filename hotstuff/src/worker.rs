@@ -1,7 +1,7 @@
 use futures::prelude::*;
 
-use sp_api::ProvideRuntimeApi;
 use sc_client_api::{backend::AuxStore, BlockOf};
+use sp_api::ProvideRuntimeApi;
 
 use sp_runtime::traits::{Block as BlockT, Member, NumberFor};
 
@@ -10,13 +10,12 @@ use parity_scale_codec::Codec;
 use sp_blockchain::HeaderBackend;
 pub use sp_consensus::SyncOracle;
 
-use sp_consensus::{ Environment, Error as ConsensusError, Proposer, SelectChain};
 use sc_consensus::BlockImport;
+use sp_consensus::{Environment, Error as ConsensusError, Proposer, SelectChain};
 
-
-use tokio::time::{sleep, Duration};
-use sp_core::crypto::Pair;
 use sp_application_crypto::AppPublic;
+use sp_core::crypto::Pair;
+use tokio::time::{sleep, Duration};
 
 use sp_consensus_hotstuff;
 
@@ -26,16 +25,14 @@ use sp_consensus_hotstuff::HotstuffApi;
 
 type AuthorityId<P> = <P as Pair>::Public;
 
-struct HotstuffWork {
-}
+struct HotstuffWork {}
 
 impl HotstuffWork {
-    async fn do_work(&self) {
-        // Implement your actual work logic here
-        println!("Performing HotstuffWork...");
-    }
+	async fn do_work(&self) {
+		// Implement your actual work logic here
+		println!("Performing HotstuffWork...");
+	}
 }
-
 
 pub fn start_hotstuff<P, B, C, SC, I, PF, SO, L, Error>(
 	StartHotstuffParams {
@@ -50,7 +47,7 @@ pub fn start_hotstuff<P, B, C, SC, I, PF, SO, L, Error>(
 		telemetry: _,
 		compatibility_mode: _,
 	}: StartHotstuffParams<C, SC, I, PF, SO, L, NumberFor<B>>,
-) -> Result<impl Future<Output = ()>, ConsensusError> 
+) -> Result<impl Future<Output = ()>, ConsensusError>
 where
 	P: Pair,
 	P::Public: AppPublic + Member,
@@ -66,17 +63,17 @@ where
 	L: sc_consensus::JustificationSyncLink<B>,
 	Error: std::error::Error + Send + From<ConsensusError> + 'static,
 {
-    println!("Hello hotstuff");
+	println!("Hello hotstuff");
 
-    let work = HotstuffWork {};
+	let work = HotstuffWork {};
 
-    let future_work = async move {
-        loop {
-            work.do_work().await;
-            sleep(Duration::from_millis(3000)).await;
-            println!("3000 ms have elapsed");
-        }
-    };
+	let future_work = async move {
+		loop {
+			work.do_work().await;
+			sleep(Duration::from_millis(3000)).await;
+			println!("3000 ms have elapsed");
+		}
+	};
 
-    Ok(future_work)
+	Ok(future_work)
 }

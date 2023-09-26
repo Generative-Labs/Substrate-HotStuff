@@ -1,20 +1,16 @@
-use parity_scale_codec::{Encode, Decode};
-use sc_network::PeerId;
+use parity_scale_codec::{Decode, Encode};
 use sp_runtime::traits::Block as BlockT;
-
-
 
 /// Network level Consensus message with topic information.
 #[derive(Debug, Encode, Decode)]
 pub(super) struct ConsensusMessage<Block: BlockT> {
-    pub(super) topic: Block::Hash,
+	pub(super) topic: Block::Hash,
 	/// The round this message is from.
 	pub(super) round: u64,
 	/// The voter set ID this message is from.
 	pub peer_id: Vec<u8>,
 	pub block_hash: Vec<u8>,
 }
-
 
 // // GossipMessage will be replace hotstuff protocol message
 // #[derive(Encode, Decode, Debug)]
@@ -27,7 +23,7 @@ pub(super) struct ConsensusMessage<Block: BlockT> {
 /// Network level vote message with topic information.
 #[derive(Debug, Encode, Decode)]
 pub(super) struct VoteMessage<Block: BlockT> {
-    pub(super) topic: Block::Hash,
+	pub(super) topic: Block::Hash,
 	/// The round this message is from.
 	pub(super) round: u64,
 	/// The voter set ID this message is from.
@@ -37,12 +33,11 @@ pub(super) struct VoteMessage<Block: BlockT> {
 	// pub(super) message: SignedMessage<Block::Header>,
 }
 
-
 /// Hotstuff gossip message type.
 /// This is the root type that gets encoded and sent on the network.
 #[derive(Debug, Encode, Decode)]
 pub(super) enum GossipMessage<Block: BlockT> {
-    Consensus(ConsensusMessage<Block>),
+	Consensus(ConsensusMessage<Block>),
 	/// Hotstuff message with round and set info.
 	Vote(VoteMessage<Block>),
 	// Hotstuff commit message with round and set info.

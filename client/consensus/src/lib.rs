@@ -1,4 +1,3 @@
-
 //! Hotstuff (Authority-round) consensus in substrate.
 //!
 //! Hotstuff works by having a list of authorities A who are expected to roughly
@@ -34,13 +33,13 @@ use sp_inherents::CreateInherentDataProviders;
 use sp_keystore::KeystorePtr;
 use sp_runtime::traits::{Block as BlockT, Header, Member, NumberFor};
 
+pub mod block_building_info;
 mod import_queue;
 pub mod standalone;
-pub mod block_building_info;
 
 pub use crate::standalone::{find_pre_digest, slot_duration};
 pub use import_queue::{
-	build_verifier, import_queue, HotstuffVerifier, BuildVerifierParams, CheckForEquivocation,
+	build_verifier, import_queue, BuildVerifierParams, CheckForEquivocation, HotstuffVerifier,
 	ImportQueueParams,
 };
 pub use sc_consensus_slots::SlotProportion;
@@ -48,7 +47,7 @@ pub use sp_consensus::SyncOracle;
 pub use sp_consensus_hotstuff::{
 	digests::CompatibleDigestItem,
 	inherents::{InherentDataProvider, InherentType as HotstuffInherent, INHERENT_IDENTIFIER},
-	HotstuffApi, ConsensusLog, SlotDuration, HOTSTUFF_ENGINE_ID,
+	ConsensusLog, HotstuffApi, SlotDuration, HOTSTUFF_ENGINE_ID,
 };
 
 const LOG_TARGET: &str = "hotstuff";
@@ -863,4 +862,3 @@ where
 // 		assert!(client.header(res.block.hash()).unwrap().is_some());
 // 	}
 // }
-

@@ -1,4 +1,3 @@
-
 //! Module implementing the logic for verifying and importing hotstuff blocks.
 
 use crate::{

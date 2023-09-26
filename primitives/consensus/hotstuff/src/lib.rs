@@ -1,11 +1,9 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
-
 use codec::{Codec, Decode, Encode};
 
 use sp_runtime::ConsensusEngineId;
 use sp_std::vec::Vec;
-
 
 pub mod digests;
 pub mod inherents;
@@ -17,13 +15,11 @@ pub const CLIENT_LOG_TARGET: &str = "hotstuff";
 /// The log target to be used by runtime code.
 pub const RUNTIME_LOG_TARGET: &str = "runtime::hotstuff";
 
-
 /// Key type for HOTSTUFF module.
 pub const HOTSTUFF_KEY_TYPE: sp_core::crypto::KeyTypeId = sp_core::crypto::KeyTypeId(*b"hots");
 
 /// Authority set id starts with zero at HOTSTUFF pallet genesis.
 pub const GENESIS_AUTHORITY_SET_ID: u64 = 0;
-
 
 pub use sp_consensus_slots::{Slot, SlotDuration};
 
@@ -31,22 +27,20 @@ pub use sp_consensus_slots::{Slot, SlotDuration};
 pub type ValidatorSetId = u64;
 
 mod app {
-    use crate::HOTSTUFF_KEY_TYPE;
+	use crate::HOTSTUFF_KEY_TYPE;
 
 	use sp_application_crypto::{app_crypto, ed25519};
 	app_crypto!(ed25519, HOTSTUFF_KEY_TYPE);
 }
-
 
 sp_application_crypto::with_pair! {
 	/// The hotstuff crypto scheme defined via the keypair type.
 	pub type AuthorityPair = app::Pair;
 }
 
-
 pub mod sr25519 {
 	mod app_sr25519 {
-        use crate::HOTSTUFF_KEY_TYPE;
+		use crate::HOTSTUFF_KEY_TYPE;
 
 		use sp_application_crypto::{app_crypto, sr25519};
 		app_crypto!(sr25519, HOTSTUFF_KEY_TYPE);
@@ -66,7 +60,7 @@ pub mod sr25519 {
 
 pub mod ed25519 {
 	mod app_ed25519 {
-        use crate::HOTSTUFF_KEY_TYPE;
+		use crate::HOTSTUFF_KEY_TYPE;
 
 		use sp_application_crypto::{app_crypto, ed25519};
 		app_crypto!(ed25519, HOTSTUFF_KEY_TYPE);
@@ -84,23 +78,18 @@ pub mod ed25519 {
 	pub type AuthorityId = app_ed25519::Public;
 }
 
-
 // /// Identity of a Hotstuff authority.
 pub type AuthorityId = app::Public;
-
 
 /// Signature for a Hotstuff authority.
 pub type AuthoritySignature = app::Signature;
 
-
 /// The `ConsensusEngineId` of HOTSTUFF.
 pub const HOTSTUFF_ENGINE_ID: ConsensusEngineId = *b"HOTS";
-
 
 /// The storage key for the current set of weighted hotstuff authorities.
 /// The value stored is an encoded VersionedAuthorityList.
 pub const HOTSTUFF_AUTHORITIES_KEY: &[u8] = b":hotstuff_authorities";
-
 
 /// The weight of an authority.
 pub type AuthorityWeight = u64;
@@ -114,10 +103,8 @@ pub type SetId = u64;
 /// The round indicator.
 pub type RoundNumber = u64;
 
-
 /// A list of Hotstuff authorities with associated weights.
 pub type AuthorityList = Vec<(AuthorityId, AuthorityWeight)>;
-
 
 /// An consensus log item for Hotstuff.
 #[derive(Decode, Encode)]

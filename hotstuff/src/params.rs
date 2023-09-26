@@ -1,9 +1,6 @@
-
+use sc_telemetry::TelemetryHandle;
 use sp_keystore::KeystorePtr;
 use std::sync::Arc;
-use sc_telemetry::TelemetryHandle;
-
-
 
 /// Run `hotstuff` in a compatibility mode.
 ///
@@ -36,7 +33,6 @@ pub enum CompatibilityMode<N> {
 	},
 }
 
-
 /// Parameters of [`start_hotstuff`].
 pub struct StartHotstuffParams<C, SC, I, PF, SO, L, N> {
 	/// The client to interact with the chain.
@@ -60,11 +56,9 @@ pub struct StartHotstuffParams<C, SC, I, PF, SO, L, N> {
 	/// Telemetry instance used to report telemetry metrics.
 	pub telemetry: Option<TelemetryHandle>,
 
-
 	// If in doubt, use `Default::default()`.
 	pub compatibility_mode: CompatibilityMode<N>,
 }
-
 
 impl<N> Default for CompatibilityMode<N> {
 	fn default() -> Self {

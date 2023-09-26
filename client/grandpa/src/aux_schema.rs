@@ -1,4 +1,3 @@
-
 //! Schema for stuff in the aux-db.
 
 use std::fmt::Debug;
