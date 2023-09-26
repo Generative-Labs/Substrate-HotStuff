@@ -12,6 +12,7 @@ pub mod client;
 pub mod gossip;
 pub mod network_bridge;
 pub mod primitives;
+pub mod store;
 pub mod voter_task;
 
 pub use client::{block_import, LinkHalf};
