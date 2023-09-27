@@ -14,6 +14,7 @@ async-trait = "0.1.57"
 parity-scale-codec = { version = "3.6.1", features = ["derive"] }
 
 futures = "0.3.21"
+futures-timer = "3.0.1"
 tokio = { version = "1.22.0", features = ["rt", "time", "macros", "sync"] }
 # codec = { default-features = false }
 serde = { version = "1.0", features = ["derive"] }

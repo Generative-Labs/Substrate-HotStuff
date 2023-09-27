@@ -330,7 +330,6 @@ where
 		info!("local peer id {}", local_peerid);
 
 		let mut gossip_msg_receiver = self.network.gossip_engine.lock().messages_for(topic);
-		// let mut rng = rand::thread_rng();
 
 		loop {
 			match StreamExt::poll_next_unpin(&mut notification, cx) {

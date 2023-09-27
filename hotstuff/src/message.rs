@@ -8,7 +8,7 @@ use crate::primitives::{HotstuffError, HotstuffError::*, ViewNumber};
 use sp_consensus_hotstuff::{AuthorityId, AuthorityList, AuthorityPair, AuthoritySignature};
 
 /// Quorum certificate for a block.
-#[derive(Debug, Default, Encode, Decode)]
+#[derive(Debug, Clone, Default, Encode, Decode)]
 pub struct QC<Block: BlockT> {
 	/// Block header hash.
 	pub hash: Block::Hash,
@@ -146,14 +146,14 @@ impl<Block: BlockT> Vote<Block> {
 }
 
 // Timeout notification
-#[derive(Debug, Encode, Decode)]
+#[derive(Debug, Clone, Encode, Decode)]
 pub struct Timeout<Block: BlockT> {
 	// The hightest QC of local node.
 	pub high_qc: QC<Block>,
 	// The view of local node at timeout.
 	pub view: ViewNumber,
-	pub author: AuthorityId,
-	pub signature: AuthoritySignature,
+	pub voter: AuthorityId,
+	pub signature: Option<AuthoritySignature>,
 }
 
 impl<Block: BlockT> Timeout<Block> {
@@ -167,14 +167,18 @@ impl<Block: BlockT> Timeout<Block> {
 	pub fn verify(&self, authorities: AuthorityList) -> Result<(), HotstuffError> {
 		authorities
 			.iter()
-			.find(|authority| authority.0 == self.author)
-			.ok_or(HotstuffError::UnknownAuthority(self.author.to_owned()))?;
+			.find(|authority| authority.0 == self.voter)
+			.ok_or(HotstuffError::UnknownAuthority(self.voter.to_owned()))?;
 
-		if !AuthorityPair::verify(&self.signature, self.digest(), &self.author) {
-			return Err(InvalidSignature(self.author.to_owned()))
-		}
-
-		Ok(())
+		self.signature
+			.as_ref()
+			.map(|s| AuthorityPair::verify(s, self.digest(), &self.voter))
+			.map_or(Ok(()), |valid| {
+				if !valid {
+					return Err(InvalidSignature(self.voter.to_owned()))
+				}
+				Ok(())
+			})
 	}
 }
 
@@ -182,7 +186,7 @@ impl<Block: BlockT> Timeout<Block> {
 pub struct TC<Block: BlockT> {
 	pub view: ViewNumber,
 	pub votes: Vec<(AuthorityId, AuthoritySignature, ViewNumber)>,
-	_phantom: PhantomData<Block>,
+	pub _phantom: PhantomData<Block>,
 }
 
 impl<Block: BlockT> TC<Block> {
@@ -227,6 +231,12 @@ pub enum ConsensusMessage<Block: BlockT> {
 	TC(TC<Block>),
 	SyncRequest(Block::Hash, AuthorityId),
 	Phantom(PhantomData<Block>),
+}
+
+impl<Block: BlockT> ConsensusMessage<Block> {
+	pub fn gossip_topic() -> Block::Hash {
+		<<Block::Header as HeaderT>::Hashing as HashT>::hash(b"hotstuff/consensus")
+	}
 }
 
 //
@@ -276,7 +286,7 @@ mod tests {
 			wight_authorities.push((authority_id.to_owned(), 10));
 
 			let signature = keystore
-				.ed25519_sign(HOTSTUFF_KEY_TYPE, authority_id.as_ref(), &digest.to_fixed_bytes())
+				.ed25519_sign(HOTSTUFF_KEY_TYPE, authority_id.as_ref(), digest.as_ref())
 				.unwrap()
 				.unwrap();
 			qc.add_votes(authority_id.to_owned(), signature.into())
@@ -305,7 +315,7 @@ mod tests {
 			wight_authorities.push((authority_id.to_owned(), 10));
 
 			let signature = keystore
-				.ed25519_sign(HOTSTUFF_KEY_TYPE, authority_id.as_ref(), &digest.to_fixed_bytes())
+				.ed25519_sign(HOTSTUFF_KEY_TYPE, authority_id.as_ref(), digest.as_ref())
 				.unwrap()
 				.unwrap();
 			qc.add_votes(authority_id.to_owned(), signature.into())

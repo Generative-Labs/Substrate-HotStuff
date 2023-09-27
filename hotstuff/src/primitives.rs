@@ -12,10 +12,15 @@ pub enum HotstuffError {
 	// The QC without a quorum
 	QCRequiresQuorum,
 
-	// Get invalid signature from a authority
+	// Get invalid signature from a authority.
 	InvalidSignature(AuthorityId),
 
+	NullSignature,
+
 	UnknownAuthority(AuthorityId),
+
+	// The voter is not in authorities.
+	NotAuthority,
 
 	Other(String),
 }
