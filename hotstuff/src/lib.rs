@@ -8,7 +8,6 @@ pub mod authorities;
 pub mod client;
 pub mod config;
 pub mod consensus;
-pub mod gossip;
 pub mod network_bridge;
 pub mod primitives;
 pub mod store;

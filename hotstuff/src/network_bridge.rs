@@ -21,7 +21,7 @@ use sp_runtime::traits::{Block as BlockT, Hash as HashT, Header as HeaderT, Numb
 
 use parking_lot::Mutex;
 
-use crate::{gossip, import::PeerReport};
+use crate::{import::PeerReport, message::ConsensusMessage};
 
 /// A handle to the network.
 ///
@@ -79,9 +79,8 @@ impl<Block: BlockT> GossipValidator<Block> {
 	}
 
 	pub fn do_validate(&self, mut data: &[u8]) -> Option<Block::Hash> {
-		match gossip::GossipMessage::<Block>::decode(&mut data) {
-			Ok(gossip::GossipMessage::Vote(res)) => Some(res.topic),
-			Ok(gossip::GossipMessage::Consensus(res)) => Some(res.topic),
+		match ConsensusMessage::<Block>::decode(&mut data) {
+			Ok(_) => Some(ConsensusMessage::<Block>::gossip_topic()),
 			Err(e) => {
 				info!("~~ GossipValidator decode data failed {}", e);
 				None
