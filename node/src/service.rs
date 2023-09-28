@@ -184,12 +184,12 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 		grandpa_protocol_name.clone(),
 	));
 
-	let hotstuff_protocol_name = hotstuff::voter_task::standard_name(
+	let hotstuff_protocol_name = hotstuff::config::standard_name(
 		&client.block_hash(0).ok().flatten().expect("Genesis block exists; qed"),
 		&config.chain_spec,
 	);
 
-	net_config.add_notification_protocol(hotstuff::voter_task::hotstuff_peers_set_config(
+	net_config.add_notification_protocol(hotstuff::config::hotstuff_peers_set_config(
 		hotstuff_protocol_name.clone(),
 	));
 
@@ -314,7 +314,7 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 		task_manager.spawn_essential_handle().spawn_blocking(
 			"hotstuff-voter",
 			None,
-			hotstuff::voter_task::run_hotstuff_voter(
+			hotstuff::consensus::hotstuff_consensus(
 				network,
 				grandpa_link,
 				Arc::new(sync_service),

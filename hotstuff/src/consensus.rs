@@ -1,10 +1,19 @@
-use std::{cmp::max, ops::Add};
+use std::{
+	cmp::max,
+	future::Future,
+	ops::Add,
+	pin::Pin,
+	task::{Context, Poll},
+};
 
+use futures::StreamExt;
 use log::{error, info};
-use parity_scale_codec::Encode;
+use parity_scale_codec::{Decode, Encode};
+use sc_network_gossip::TopicNotification;
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 
 use sc_client_api::Backend;
+use sc_network::types::ProtocolName;
 use sp_application_crypto::AppCrypto;
 use sp_consensus_hotstuff::{AuthorityId, AuthorityList, AuthoritySignature, HOTSTUFF_KEY_TYPE};
 use sp_core::crypto::ByteArray;
@@ -13,9 +22,9 @@ use sp_runtime::traits::{Block as BlockT, One};
 
 use crate::{
 	aggregator::Aggregator,
-	client::ClientForHotstuff,
+	client::{ClientForHotstuff, LinkHalf},
 	message::{ConsensusMessage, ConsensusMessage::*, Proposal, Timeout, Vote, QC, TC},
-	network_bridge::{HotstuffNetworkBridge, Network, Syncing},
+	network_bridge::{HotstuffNetworkBridge, Network as NetworkT, Syncing as SyncingT},
 	primitives::{HotstuffError, HotstuffError::*, ViewNumber},
 	synchronizer::{Synchronizer, Timer},
 };
@@ -32,6 +41,17 @@ pub struct ConsensusState<B: BlockT> {
 }
 
 impl<B: BlockT> ConsensusState<B> {
+	pub fn new(keystore: KeystorePtr, authorities: AuthorityList) -> Self {
+		Self {
+			keystore,
+			authorities,
+			view: 0,
+			last_voted_view: 0,
+			high_qc: Default::default(),
+			aggregator: Aggregator::<B>::new(),
+		}
+	}
+
 	// find local authority id. If the result is None, local node is not authority.
 	pub fn local_authority_id(&self) -> Option<AuthorityId> {
 		self.authorities
@@ -83,7 +103,8 @@ impl<B: BlockT> ConsensusState<B> {
 			None,
 		);
 
-		block.signature = self.keystore
+		block.signature = self
+			.keystore
 			.sign_with(
 				AuthorityId::ID,
 				AuthorityId::CRYPTO_ID,
@@ -97,23 +118,24 @@ impl<B: BlockT> ConsensusState<B> {
 	}
 
 	pub fn make_vote(&mut self, proposal: &Proposal<B>) -> Option<Vote<B>> {
-        let author_id = self.local_authority_id()?;
+		let author_id = self.local_authority_id()?;
 
-        if proposal.view <= self.last_voted_view {
+		if proposal.view <= self.last_voted_view {
 			return None
 		}
 
 		// TODO how process TC of proposal.
 		self.last_voted_view = max(self.last_voted_view, proposal.view);
 
-        let mut vote = Vote::<B>{
-            hash: proposal.digest(),
-            view: proposal.view,
-            voter: author_id.clone(),
-            signature: None,
-        };
+		let mut vote = Vote::<B> {
+			hash: proposal.digest(),
+			view: proposal.view,
+			voter: author_id.clone(),
+			signature: None,
+		};
 
-        vote.signature = self.keystore
+		vote.signature = self
+			.keystore
 			.sign_with(
 				AuthorityId::ID,
 				AuthorityId::CRYPTO_ID,
@@ -143,16 +165,16 @@ impl<B: BlockT> ConsensusState<B> {
 		proposal.verify(&self.authorities)
 	}
 
-    pub fn verify_vote(&self, vote: &Vote<B>)->Result<(), HotstuffError>{
-        if vote.view < self.view{
+	pub fn verify_vote(&self, vote: &Vote<B>) -> Result<(), HotstuffError> {
+		if vote.view < self.view {
 			return Err(InvalidVote)
 		}
 
 		vote.verify(&self.authorities)
-    }
+	}
 
-	pub fn verify_tc(&self, tc: &TC<B>)->Result<(), HotstuffError>{
-		if tc.view < self.view{
+	pub fn verify_tc(&self, tc: &TC<B>) -> Result<(), HotstuffError> {
+		if tc.view < self.view {
 			return Err(InvalidTC)
 		}
 
@@ -165,7 +187,7 @@ impl<B: BlockT> ConsensusState<B> {
 	}
 
 	// add a verified vote and try return a QC.
-	pub fn add_vote(&mut self, vote: &Vote<B>)->Result<Option<QC<B>>, HotstuffError>{
+	pub fn add_vote(&mut self, vote: &Vote<B>) -> Result<Option<QC<B>>, HotstuffError> {
 		self.aggregator.add_vote(vote.clone(), &self.authorities)
 	}
 
@@ -202,8 +224,8 @@ pub struct ConsensusWorker<
 	B: BlockT,
 	BE: Backend<B>,
 	C: ClientForHotstuff<B, BE>,
-	N: Network<B> + Sync + 'static,
-	S: Syncing<B> + Sync + 'static,
+	N: NetworkT<B> + Sync + 'static,
+	S: SyncingT<B> + Sync + 'static,
 > {
 	state: ConsensusState<B>,
 
@@ -221,8 +243,8 @@ where
 	B: BlockT,
 	BE: Backend<B>,
 	C: ClientForHotstuff<B, BE>,
-	N: Network<B> + Sync + 'static,
-	S: Syncing<B> + Sync + 'static,
+	N: NetworkT<B> + Sync + 'static,
+	S: SyncingT<B> + Sync + 'static,
 {
 	pub fn new(
 		consensus_state: ConsensusState<B>,
@@ -247,9 +269,12 @@ where
 	pub async fn run(&mut self) {
 		loop {
 			let result = tokio::select! {
-				_ = &mut self.local_timer =>{ self.handle_local_timer().await },
+				_ = &mut self.local_timer => self.handle_local_timer().await,
 				Some(message) = self.consensus_msg_rx.recv()=> match message {
 					Propose(proposal) => self.handle_proposal(&proposal).await,
+					Vote(vote) => self.handle_vote(&vote).await,
+					Timeout(timeout) => self.handle_timeout(&timeout).await,
+					TC(tc) => self.handle_tc(&tc).await,
 					_ => Ok(()),
 				}
 			};
@@ -309,10 +334,11 @@ where
 		self.state.verify_proposal(proposal)?;
 
 		self.handle_qc(&proposal.qc);
-		proposal.tc.as_ref().map(|tc| 
+		proposal.tc.as_ref().map(|tc| {
 			if tc.view > self.state.view() {
-			self.state.advance_view();
-			self.local_timer.reset();
+				self.state.advance_view();
+				self.local_timer.reset();
+			}
 		});
 
 		// Try get proposal ancestors. If we can't get them from local store,
@@ -331,31 +357,31 @@ where
 			return Ok(())
 		}
 
-        if let Some(vote) = self.state.make_vote(&proposal){
-            let next_leader = self.state.view_leader(self.state.view() +1);
-            if self.state.local_authority_id().map_or(false, |id| id ==next_leader){
-                self.handle_vote(&vote).await?;
-            }else{
-                let vote_message = ConsensusMessage::Vote(vote);
+		if let Some(vote) = self.state.make_vote(&proposal) {
+			let next_leader = self.state.view_leader(self.state.view() + 1);
+			if self.state.local_authority_id().map_or(false, |id| id == next_leader) {
+				self.handle_vote(&vote).await?;
+			} else {
+				let vote_message = ConsensusMessage::Vote(vote);
 
-                self.network.gossip_engine.lock().register_gossip_message(
-                    ConsensusMessage::<B>::gossip_topic(),
-                    vote_message.encode(),
-                );
-            }
-        }
+				self.network.gossip_engine.lock().register_gossip_message(
+					ConsensusMessage::<B>::gossip_topic(),
+					vote_message.encode(),
+				);
+			}
+		}
 
 		Ok(())
 	}
 
-    pub async fn handle_vote(&mut self, vote: &Vote<B>)->Result<(), HotstuffError>{
-        self.state.verify_vote(vote)?;
+	pub async fn handle_vote(&mut self, vote: &Vote<B>) -> Result<(), HotstuffError> {
+		self.state.verify_vote(vote)?;
 
-		if let Some(qc) = self.state.add_vote(vote)?{
+		if let Some(qc) = self.state.add_vote(vote)? {
 			self.handle_qc(&qc);
 
-			let next_leader = self.state.view_leader(self.state.view() +1);
-            if self.state.local_authority_id().map_or(false, |id| id ==next_leader){
+			let next_leader = self.state.view_leader(self.state.view() + 1);
+			if self.state.local_authority_id().map_or(false, |id| id == next_leader) {
 				if let Some(hash) = self.get_finalize_block_hash() {
 					let block = self.state.make_proposal(hash, None)?;
 					let proposal_message = ConsensusMessage::Propose(block);
@@ -370,12 +396,12 @@ where
 						.send(proposal_message)
 						.await
 						.map_err(|e| Other(e.to_string()))?;
-				}		
+				}
 			}
 		}
 
-        Ok(())
-    }
+		Ok(())
+	}
 
 	pub fn handle_qc(&mut self, qc: &QC<B>) {
 		if qc.view > self.state.view() {
@@ -385,20 +411,20 @@ where
 		}
 	}
 
-	pub async fn handle_tc(&mut self, tc: &TC<B>) ->Result<(), HotstuffError>{
-		self.state.verify_tc(tc)?;	
+	pub async fn handle_tc(&mut self, tc: &TC<B>) -> Result<(), HotstuffError> {
+		self.state.verify_tc(tc)?;
 
 		self.state.advance_view();
 		self.local_timer.reset();
 
-		if self.state.is_leader(){
+		if self.state.is_leader() {
 			self.generate_proposal(None).await?;
 		}
 
 		Ok(())
 	}
 
-	pub async fn generate_proposal(&mut self, tc: Option<TC<B>>)->Result<(),HotstuffError>{
+	pub async fn generate_proposal(&mut self, tc: Option<TC<B>>) -> Result<(), HotstuffError> {
 		if let Some(hash) = self.get_finalize_block_hash() {
 			let block = self.state.make_proposal(hash, tc)?;
 			let proposal_message = ConsensusMessage::Propose(block);
@@ -424,4 +450,82 @@ where
 		let try_finalize_block_number = self.client.info().finalized_number.add(One::one());
 		self.client.hash(try_finalize_block_number).map_or(None, |v| v)
 	}
+
+	pub fn incoming_message(
+		&mut self,
+		notification: TopicNotification,
+	) -> Result<(), HotstuffError> {
+		let message: ConsensusMessage<B> =
+			Decode::decode(&mut &notification.message[..]).map_err(|e| Other(e.to_string()))?;
+		self.consensus_msg_tx.try_send(message).map_err(|e| Other(e.to_string()))
+	}
+}
+
+impl<B, BE, C, N, S> Future for ConsensusWorker<B, BE, C, N, S>
+where
+	B: BlockT,
+	BE: Backend<B>,
+	C: ClientForHotstuff<B, BE>,
+	N: NetworkT<B> + Sync + 'static,
+	S: SyncingT<B> + Sync + 'static,
+{
+	type Output = ();
+
+	fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+		let mut gossip_msg_receiver = self
+			.network
+			.gossip_engine
+			.lock()
+			.messages_for(ConsensusMessage::<B>::gossip_topic());
+		loop {
+			match StreamExt::poll_next_unpin(&mut gossip_msg_receiver, cx) {
+				Poll::Ready(None) => break,
+				Poll::Ready(Some(notification)) => {
+					if let Err(e) = self.incoming_message(notification) {
+						error!("process incoming message error: {:#?}", e)
+					}
+				},
+				Poll::Pending => {},
+			};
+
+			match Future::poll(Pin::new(&mut self.network), cx) {
+				Poll::Ready(_) => break,
+				Poll::Pending => {},
+			}
+		}
+
+		Poll::Pending
+	}
+}
+
+impl<B, BE, C, N, S> Unpin for ConsensusWorker<B, BE, C, N, S>
+where
+	B: BlockT,
+	BE: Backend<B>,
+	C: ClientForHotstuff<B, BE>,
+	N: NetworkT<B> + Sync + 'static,
+	S: SyncingT<B> + Sync + 'static,
+{
+}
+
+pub fn hotstuff_consensus<Block: BlockT, BE: 'static, C, N, S, SC>(
+	network: N,
+	link: LinkHalf<Block, C, SC>,
+	sync: S,
+	hotstuff_protocol_name: ProtocolName,
+	key_store: KeystorePtr,
+) -> sp_blockchain::Result<impl Future<Output = ()> + Send>
+where
+	BE: Backend<Block> + 'static,
+	N: NetworkT<Block> + Sync + 'static,
+	S: SyncingT<Block> + Sync + 'static,
+	C: ClientForHotstuff<Block, BE> + 'static,
+	C::Api: sp_consensus_grandpa::GrandpaApi<Block>,
+{
+	let LinkHalf { client, .. } = link;
+
+	let hotstuff_network_bridge =
+		HotstuffNetworkBridge::new(network.clone(), sync.clone(), hotstuff_protocol_name);
+
+	Ok(async move {})
 }

@@ -1,16 +1,15 @@
 use std::{
 	future::Future,
 	pin::Pin,
-	sync::{mpsc::Sender, Arc},
+	sync::Arc,
 	task::{Context, Poll},
 	time::Duration,
 };
 
-use log::error;
-use sp_core::{Decode, Encode};
 use tokio::time::{interval, Instant, Interval};
 
 use sc_client_api::Backend;
+use sp_core::{Decode, Encode};
 use sp_runtime::traits::Block as BlockT;
 
 use crate::{
@@ -42,12 +41,6 @@ impl Future for Timer {
 // Synchronizer synchronizes replicas to the same view.
 pub struct Synchronizer<B: BlockT, BE: Backend<B>, C: ClientForHotstuff<B, BE>> {
 	store: Store<B, BE, C>,
-
-	timer: Timer,
-
-	sender: Option<Sender<B::Hash>>,
-
-	local_timeout_tx: Sender<()>,
 }
 
 impl<B, BE, C> Synchronizer<B, BE, C>
@@ -56,13 +49,8 @@ where
 	BE: Backend<B>,
 	C: ClientForHotstuff<B, BE>,
 {
-	pub fn new(client: Arc<C>, timeout: u64, local_timeout_tx: Sender<()>) -> Self {
-		Self {
-			store: Store::new(client),
-			timer: Timer::new(timeout),
-			sender: None,
-			local_timeout_tx,
-		}
+	pub fn new(client: Arc<C>) -> Self {
+		Self { store: Store::new(client) }
 	}
 
 	pub fn save_proposal(&mut self, proposal: &Proposal<B>) -> Result<(), HotstuffError> {
@@ -74,7 +62,7 @@ where
 			.map_err(|e| HotstuffError::Other(e.to_string()))
 	}
 
-	pub fn get_proposal(&mut self, hash: B::Hash) {}
+	// pub fn get_proposal(&mut self, hash: B::Hash) {}
 
 	pub fn get_proposal_ancestors(
 		&self,
@@ -104,57 +92,4 @@ where
 
 		Err(HotstuffError::ProposalNotFound)
 	}
-
-	pub async fn start(&mut self) {
-		loop {
-			let res = tokio::select! {
-				_ = &mut self.timer =>{
-					if let Err(e) = self.local_timeout_tx.send(()){
-						error!("synchronizer send local timeout signal failed, error{}", e);
-						break;
-					}
-				}
-			};
-			println!("tokio select res {:#?}", res);
-		}
-	}
-}
-
-#[cfg(test)]
-mod tests {
-	use super::Timer;
-
-	#[tokio::test]
-	pub async fn test_timer() {
-		let timer = Timer::new(1000);
-
-		timer.await;
-	}
-	// use super::*;
-
-	// #[tokio::test]
-	// pub async fn test_synchronizer_timer() {
-	// 	let client = substrate_test_runtime_client::new();
-	// 	let (tx, rx) = std::sync::mpsc::channel::<()>();
-	// 	let mut synchronizer = Synchronizer::new(Arc::new(client), 100, tx);
-
-	//     let handler2 = tokio::spawn(async move {
-	// 		{
-	// 			loop {
-	// 				println!("handler2 begin ");
-	// 				match rx.recv() {
-	// 					Ok(_) => println!("recv ok"),
-	// 					Err(e) => println!("recv err {}", e),
-	// 				}
-	// 			}
-	// 		}
-	// 	});
-
-	//     println!("handler2 begin xxx");
-	// 	let handler1 = tokio::spawn(async move {
-	//         synchronizer.start().await;
-	//     }).await;
-
-	// 	tokio::join!(handler2);
-	// }
 }

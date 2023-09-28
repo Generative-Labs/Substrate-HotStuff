@@ -8,7 +8,7 @@ use crate::primitives::{HotstuffError, HotstuffError::*, ViewNumber};
 use sp_consensus_hotstuff::{AuthorityId, AuthorityList, AuthorityPair, AuthoritySignature};
 
 /// Quorum certificate for a block.
-#[derive(Debug, Clone, Default, Encode, Decode)]
+#[derive(Debug, Clone, Encode, Decode)]
 pub struct QC<Block: BlockT> {
 	/// Hotstuff proposal hash.
 	/// TODO rename to proposal_hash.
@@ -16,6 +16,12 @@ pub struct QC<Block: BlockT> {
 	pub view: ViewNumber,
 	/// Public key signature pairs for the digest of QC.
 	pub votes: Vec<(AuthorityId, AuthoritySignature)>,
+}
+
+impl<B: BlockT> Default for QC<B> {
+	fn default() -> Self {
+		Self { hash: Default::default(), view: Default::default(), votes: Default::default() }
+	}
 }
 
 impl<Block: BlockT> QC<Block> {
