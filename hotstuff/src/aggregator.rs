@@ -33,14 +33,14 @@ impl<B: Block> Aggregator<B> {
 
 	pub fn add_timeout(
 		&mut self,
-		timeout: Timeout<B>,
+		timeout: &Timeout<B>,
 		authorities: &AuthorityList,
 	) -> Result<Option<TC<B>>, HotstuffError> {
 		// Add the new timeout to our aggregator and see if we have a TC.
 		self.timeouts_aggregators
 			.entry(timeout.view)
 			.or_insert_with(|| TCMaker::new())
-			.append(timeout, authorities)
+			.append(timeout.clone(), authorities)
 	}
 }
 
@@ -68,7 +68,7 @@ impl QCMaker {
 			.find(|(id, _)| id.eq(&voter))
 			.ok_or_else(|| AuthorityReuse(voter.to_owned()))?;
 
-		self.votes.push((voter, vote.signature));
+		self.votes.push((voter, vote.signature.ok_or(HotstuffError::NullSignature)?));
 		self.weight += 1;
 
 		if self.weight < 4 || self.weight < (authorities.len() * 2 / 3 + 1) as u64 {

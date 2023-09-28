@@ -1,21 +1,21 @@
 use std::{
 	future::Future,
 	pin::Pin,
-	sync::{
-		mpsc::Sender,
-		Arc,
-	},
+	sync::{mpsc::Sender, Arc},
 	task::{Context, Poll},
 	time::Duration,
 };
 
 use log::error;
+use sp_core::{Decode, Encode};
 use tokio::time::{interval, Instant, Interval};
 
 use sc_client_api::Backend;
 use sp_runtime::traits::Block as BlockT;
 
-use crate::{client::ClientForHotstuff, store::Store};
+use crate::{
+	client::ClientForHotstuff, message::Proposal, primitives::HotstuffError, store::Store,
+};
 
 pub struct Timer {
 	delay: Interval,
@@ -63,6 +63,46 @@ where
 			sender: None,
 			local_timeout_tx,
 		}
+	}
+
+	pub fn save_proposal(&mut self, proposal: &Proposal<B>) -> Result<(), HotstuffError> {
+		let value = proposal.encode();
+		let key = proposal.digest();
+
+		self.store
+			.set(key.as_ref(), &value)
+			.map_err(|e| HotstuffError::Other(e.to_string()))
+	}
+
+	pub fn get_proposal(&mut self, hash: B::Hash) {}
+
+	pub fn get_proposal_ancestors(
+		&self,
+		proposal: &Proposal<B>,
+	) -> Result<(Proposal<B>, Proposal<B>), HotstuffError> {
+		let parent = self.get_proposal_parent(proposal)?;
+		let grandpa = self.get_proposal_parent(&parent)?;
+		Ok((parent, grandpa))
+	}
+
+	pub fn get_proposal_parent(
+		&self,
+		proposal: &Proposal<B>,
+	) -> Result<Proposal<B>, HotstuffError> {
+		let res = self
+			.store
+			.get(proposal.parent_hash().as_ref())
+			.map_err(|e| HotstuffError::Other(e.to_string()))?;
+
+		if let Some(data) = res {
+			let proposal: Proposal<B> =
+				Decode::decode(&mut &data[..]).map_err(|e| HotstuffError::Other(e.to_string()))?;
+			return Ok(proposal)
+		}
+
+		// TODO request from network, wait result here?
+
+		Err(HotstuffError::ProposalNotFound)
 	}
 
 	pub async fn start(&mut self) {

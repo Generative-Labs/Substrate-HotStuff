@@ -10,7 +10,8 @@ use sp_consensus_hotstuff::{AuthorityId, AuthorityList, AuthorityPair, Authority
 /// Quorum certificate for a block.
 #[derive(Debug, Clone, Default, Encode, Decode)]
 pub struct QC<Block: BlockT> {
-	/// Block header hash.
+	/// Hotstuff proposal hash.
+	/// TODO rename to proposal_hash.
 	pub hash: Block::Hash,
 	pub view: ViewNumber,
 	/// Public key signature pairs for the digest of QC.
@@ -32,7 +33,7 @@ impl<Block: BlockT> QC<Block> {
 	// Verify if the number of votes in the QC has exceeded (2/3 + 1) of the total authorities.
 	// We are currently not considering the weight of authorities. So a valid QC contains at least 4
 	// votes.
-	pub fn verify(&self, authorities: AuthorityList) -> Result<(), HotstuffError> {
+	pub fn verify(&self, authorities: &AuthorityList) -> Result<(), HotstuffError> {
 		let mut used = HashSet::<AuthorityId>::new();
 		let mut grant_votes = 0;
 
@@ -59,30 +60,34 @@ impl<Block: BlockT> QC<Block> {
 	}
 }
 
-// HotstuffBlock
-#[derive(Debug, Encode, Decode)]
-pub struct HotstuffBlock<Block: BlockT> {
+// HotstuffBlock and the block in the blockchain are not the same. HotstuffBlock exists
+// only within the consensus layer. Maybe it should be rename.
+// So, how is the QC formed by the consensus included in the Substrate Block?
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct Proposal<Block: BlockT> {
 	// QC of parent block.
 	pub qc: QC<Block>,
-	// Hash of current block.
-	pub hash: Block::Hash,
+	pub tc: Option<TC<Block>>,
+	// payload represents the block hash in the blockchain that will be finalized.
+	pub payload: Block::Hash,
 	pub view: ViewNumber,
 	// The authority id of current hotstuff block author,
 	// which is not the origin block producer.
 	pub author: AuthorityId,
 	// Signature of current block digest.
-	pub signature: AuthoritySignature,
+	pub signature: Option<AuthoritySignature>,
 }
 
-impl<Block: BlockT> HotstuffBlock<Block> {
+impl<Block: BlockT> Proposal<Block> {
 	pub fn new(
 		qc: QC<Block>,
+		tc: Option<TC<Block>>,
 		hash: Block::Hash,
 		view: ViewNumber,
 		author: AuthorityId,
-		signature: AuthoritySignature,
+		signature: Option<AuthoritySignature>,
 	) -> Self {
-		HotstuffBlock { qc, hash, view, author, signature }
+		Proposal { qc, tc, payload: hash, view, author, signature }
 	}
 
 	pub fn parent_hash(&self) -> Block::Hash {
@@ -91,22 +96,28 @@ impl<Block: BlockT> HotstuffBlock<Block> {
 
 	pub fn digest(&self) -> Block::Hash {
 		let mut data = self.author.encode();
-		data.append(&mut self.hash.encode());
+		data.append(&mut self.payload.encode());
 		data.append(&mut self.view.encode());
 		data.append(&mut self.qc.hash.encode());
 
 		<<Block::Header as HeaderT>::Hashing as HashT>::hash_of(&data)
 	}
 
-	pub fn verify(&self, authorities: AuthorityList) -> Result<(), HotstuffError> {
+	pub fn verify(&self, authorities: &AuthorityList) -> Result<(), HotstuffError> {
 		authorities
 			.iter()
 			.find(|authority| authority.0 == self.author)
 			.ok_or(HotstuffError::UnknownAuthority(self.author.to_owned()))?;
 
-		if !AuthorityPair::verify(&self.signature, self.digest(), &self.author) {
-			return Err(InvalidSignature(self.author.to_owned()))
-		}
+		self.signature
+			.as_ref()
+			.map(|s| AuthorityPair::verify(s, self.digest(), &self.author))
+			.map_or(Ok(()), |valid| {
+				if !valid {
+					return Err(InvalidSignature(self.author.to_owned()))
+				}
+				Ok(())
+			})?;
 
 		self.qc.verify(authorities)?;
 
@@ -114,13 +125,13 @@ impl<Block: BlockT> HotstuffBlock<Block> {
 	}
 }
 
-// Vote for a hotstuff block
-#[derive(Debug, Encode, Decode)]
+// Vote for a Proposal
+#[derive(Debug, Clone, Encode, Decode)]
 pub struct Vote<Block: BlockT> {
 	pub hash: Block::Hash,
 	pub view: ViewNumber,
 	pub voter: AuthorityId,
-	pub signature: AuthoritySignature,
+	pub signature: Option<AuthoritySignature>,
 }
 
 impl<Block: BlockT> Vote<Block> {
@@ -131,17 +142,21 @@ impl<Block: BlockT> Vote<Block> {
 		<<Block::Header as HeaderT>::Hashing as HashT>::hash_of(&data)
 	}
 
-	pub fn verify(&self, authorities: AuthorityList) -> Result<(), HotstuffError> {
+	pub fn verify(&self, authorities: &AuthorityList) -> Result<(), HotstuffError> {
 		authorities
 			.iter()
 			.find(|authority| authority.0 == self.voter)
 			.ok_or(HotstuffError::UnknownAuthority(self.voter.to_owned()))?;
 
-		if !AuthorityPair::verify(&self.signature, self.digest(), &self.voter) {
-			return Err(InvalidSignature(self.voter.to_owned()))
-		}
-
-		Ok(())
+		self.signature
+			.as_ref()
+			.map(|s| AuthorityPair::verify(s, self.digest(), &self.voter))
+			.map_or(Ok(()), |valid| {
+				if !valid {
+					return Err(InvalidSignature(self.voter.to_owned()))
+				}
+				Ok(())
+			})
 	}
 }
 
@@ -164,7 +179,7 @@ impl<Block: BlockT> Timeout<Block> {
 		<<Block::Header as HeaderT>::Hashing as HashT>::hash_of(&data)
 	}
 
-	pub fn verify(&self, authorities: AuthorityList) -> Result<(), HotstuffError> {
+	pub fn verify(&self, authorities: &AuthorityList) -> Result<(), HotstuffError> {
 		authorities
 			.iter()
 			.find(|authority| authority.0 == self.voter)
@@ -178,11 +193,13 @@ impl<Block: BlockT> Timeout<Block> {
 					return Err(InvalidSignature(self.voter.to_owned()))
 				}
 				Ok(())
-			})
+			})?;
+
+		self.high_qc.verify(&authorities)
 	}
 }
 
-#[derive(Debug, Encode, Decode)]
+#[derive(Debug, Clone, Encode, Decode)]
 pub struct TC<Block: BlockT> {
 	pub view: ViewNumber,
 	pub votes: Vec<(AuthorityId, AuthoritySignature, ViewNumber)>,
@@ -190,7 +207,7 @@ pub struct TC<Block: BlockT> {
 }
 
 impl<Block: BlockT> TC<Block> {
-	pub fn verify(&self, authorities: AuthorityList) -> Result<(), HotstuffError> {
+	pub fn verify(&self, authorities: &AuthorityList) -> Result<(), HotstuffError> {
 		let mut used = HashSet::<AuthorityId>::new();
 		let mut grant_votes = 0;
 
@@ -224,17 +241,18 @@ impl<Block: BlockT> TC<Block> {
 }
 
 #[derive(Debug, Encode, Decode)]
-pub enum ConsensusMessage<Block: BlockT> {
-	Propose(HotstuffBlock<Block>),
-	Vote(Vote<Block>),
-	Timeout(Timeout<Block>),
-	TC(TC<Block>),
-	SyncRequest(Block::Hash, AuthorityId),
-	Phantom(PhantomData<Block>),
+pub enum ConsensusMessage<B: BlockT> {
+	Propose(Proposal<B>),
+	Vote(Vote<B>),
+	Timeout(Timeout<B>),
+	TC(TC<B>),
+	SyncRequest(B::Hash, AuthorityId),
+	Phantom(PhantomData<B>),
 }
 
 impl<Block: BlockT> ConsensusMessage<Block> {
 	pub fn gossip_topic() -> Block::Hash {
+		// TODO maybe use Lazy then just call hash once.
 		<<Block::Header as HeaderT>::Hashing as HashT>::hash(b"hotstuff/consensus")
 	}
 }
@@ -292,7 +310,7 @@ mod tests {
 			qc.add_votes(authority_id.to_owned(), signature.into())
 		}
 
-		assert!(qc.verify(wight_authorities).is_ok());
+		assert!(qc.verify(&wight_authorities).is_ok());
 	}
 
 	#[test]
@@ -321,7 +339,7 @@ mod tests {
 			qc.add_votes(authority_id.to_owned(), signature.into())
 		}
 
-		assert_eq!(qc.verify(wight_authorities), Err(HotstuffError::QCRequiresQuorum));
+		assert_eq!(qc.verify(&wight_authorities), Err(HotstuffError::QCRequiresQuorum));
 	}
 
 	#[test]
