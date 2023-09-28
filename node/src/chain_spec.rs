@@ -109,6 +109,7 @@ pub fn local_testnet_config() -> Result<ChainSpec, String> {
 				vec![
 					hotstuff_authority_keys_from_seed("Alice"),
 					hotstuff_authority_keys_from_seed("Bob"),
+					hotstuff_authority_keys_from_seed("Charlie"),
 					hotstuff_authority_keys_from_seed("Eve"),
 				],
 				// Sudo account
