@@ -3,6 +3,7 @@ use std::{
 	future::Future,
 	ops::Add,
 	pin::Pin,
+	sync::Arc,
 	task::{Context, Poll},
 };
 
@@ -12,13 +13,17 @@ use parity_scale_codec::{Decode, Encode};
 use sc_network_gossip::TopicNotification;
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 
-use sc_client_api::Backend;
+use sc_client_api::{Backend, CallExecutor};
 use sc_network::types::ProtocolName;
+use sc_service::TaskManager;
 use sp_application_crypto::AppCrypto;
 use sp_consensus_hotstuff::{AuthorityId, AuthorityList, AuthoritySignature, HOTSTUFF_KEY_TYPE};
-use sp_core::crypto::ByteArray;
+use sp_core::{crypto::ByteArray, traits::CallContext};
 use sp_keystore::KeystorePtr;
-use sp_runtime::traits::{Block as BlockT, One};
+use sp_runtime::{
+	generic::BlockId,
+	traits::{Block as BlockT, One, Zero},
+};
 
 use crate::{
 	aggregator::Aggregator,
@@ -230,7 +235,7 @@ pub struct ConsensusWorker<
 	state: ConsensusState<B>,
 
 	network: HotstuffNetworkBridge<B, N, S>,
-	client: C,
+	client: Arc<C>,
 	local_timer: Timer,
 	synchronizer: Synchronizer<B, BE, C>,
 
@@ -248,13 +253,14 @@ where
 {
 	pub fn new(
 		consensus_state: ConsensusState<B>,
-		client: C,
+		client: Arc<C>,
 		network: HotstuffNetworkBridge<B, N, S>,
 		synchronizer: Synchronizer<B, BE, C>,
 		local_timer_duration: u64,
+		consensus_msg_tx: Sender<ConsensusMessage<B>>,
+		consensus_msg_rx: Receiver<ConsensusMessage<B>>,
 	) -> Self {
 		// TODO channel size?
-		let (consensus_msg_tx, consensus_msg_rx) = channel::<ConsensusMessage<B>>(1000);
 		Self {
 			state: consensus_state,
 			network,
@@ -450,22 +456,11 @@ where
 		let try_finalize_block_number = self.client.info().finalized_number.add(One::one());
 		self.client.hash(try_finalize_block_number).map_or(None, |v| v)
 	}
-
-	pub fn incoming_message(
-		&mut self,
-		notification: TopicNotification,
-	) -> Result<(), HotstuffError> {
-		let message: ConsensusMessage<B> =
-			Decode::decode(&mut &notification.message[..]).map_err(|e| Other(e.to_string()))?;
-		self.consensus_msg_tx.try_send(message).map_err(|e| Other(e.to_string()))
-	}
 }
 
-impl<B, BE, C, N, S> Future for ConsensusWorker<B, BE, C, N, S>
+impl<B, N, S> Future for ConsensusNetwork<B, N, S>
 where
 	B: BlockT,
-	BE: Backend<B>,
-	C: ClientForHotstuff<B, BE>,
 	N: NetworkT<B> + Sync + 'static,
 	S: SyncingT<B> + Sync + 'static,
 {
@@ -481,7 +476,7 @@ where
 			match StreamExt::poll_next_unpin(&mut gossip_msg_receiver, cx) {
 				Poll::Ready(None) => break,
 				Poll::Ready(Some(notification)) => {
-					if let Err(e) = self.incoming_message(notification) {
+					if let Err(e) = self.incoming_message_handler(notification) {
 						error!("process incoming message error: {:#?}", e)
 					}
 				},
@@ -498,6 +493,38 @@ where
 	}
 }
 
+pub struct ConsensusNetwork<
+	B: BlockT,
+	N: NetworkT<B> + Sync + 'static,
+	S: SyncingT<B> + Sync + 'static,
+> {
+	network: HotstuffNetworkBridge<B, N, S>,
+	consensus_msg_tx: Sender<ConsensusMessage<B>>,
+}
+
+impl<B, N, S> ConsensusNetwork<B, N, S>
+where
+	B: BlockT,
+	N: NetworkT<B> + Sync + 'static,
+	S: SyncingT<B> + Sync + 'static,
+{
+	pub fn new(
+		network: HotstuffNetworkBridge<B, N, S>,
+		consensus_msg_tx: Sender<ConsensusMessage<B>>,
+	) -> Self {
+		Self { network, consensus_msg_tx }
+	}
+
+	pub fn incoming_message_handler(
+		&mut self,
+		notification: TopicNotification,
+	) -> Result<(), HotstuffError> {
+		let message: ConsensusMessage<B> =
+			Decode::decode(&mut &notification.message[..]).map_err(|e| Other(e.to_string()))?;
+		self.consensus_msg_tx.try_send(message).map_err(|e| Other(e.to_string()))
+	}
+}
+
 impl<B, BE, C, N, S> Unpin for ConsensusWorker<B, BE, C, N, S>
 where
 	B: BlockT,
@@ -508,24 +535,72 @@ where
 {
 }
 
-pub fn hotstuff_consensus<Block: BlockT, BE: 'static, C, N, S, SC>(
+pub fn start_hotstuff<B: BlockT, BE: 'static, C, N, S, SC>(
 	network: N,
-	link: LinkHalf<Block, C, SC>,
+	link: LinkHalf<B, C, SC>,
 	sync: S,
 	hotstuff_protocol_name: ProtocolName,
-	key_store: KeystorePtr,
-) -> sp_blockchain::Result<impl Future<Output = ()> + Send>
-where
-	BE: Backend<Block> + 'static,
-	N: NetworkT<Block> + Sync + 'static,
-	S: SyncingT<Block> + Sync + 'static,
-	C: ClientForHotstuff<Block, BE> + 'static,
-	C::Api: sp_consensus_grandpa::GrandpaApi<Block>,
+	keystore: KeystorePtr,
+	task_manager: &TaskManager,
+) where
+	BE: Backend<B> + 'static,
+	N: NetworkT<B> + Sync + 'static,
+	S: SyncingT<B> + Sync + 'static,
+	C: ClientForHotstuff<B, BE> + 'static,
+	C::Api: sp_consensus_grandpa::GrandpaApi<B>,
 {
 	let LinkHalf { client, .. } = link;
+	let authorities = get_genesis_authorities_from_client::<B, BE, C>(client.clone());
 
-	let hotstuff_network_bridge =
-		HotstuffNetworkBridge::new(network.clone(), sync.clone(), hotstuff_protocol_name);
+	let network = HotstuffNetworkBridge::new(network.clone(), sync.clone(), hotstuff_protocol_name);
+	let synchronizer = Synchronizer::<B, BE, C>::new(client.clone());
+	let consensus_state = ConsensusState::<B>::new(keystore, authorities);
 
-	Ok(async move {})
+	let (consensus_msg_tx, consensus_msg_rx) = channel::<ConsensusMessage<B>>(1000);
+
+	let mut consensus_worker = ConsensusWorker::<B, BE, C, N, S>::new(
+		consensus_state,
+		client,
+		network.clone(),
+		synchronizer,
+		1000,
+		consensus_msg_tx.clone(),
+		consensus_msg_rx,
+	);
+
+	let consensus_network = ConsensusNetwork::<B, N, S>::new(network, consensus_msg_tx);
+
+	task_manager.spawn_essential_handle().spawn_blocking(
+		"hotstuff network",
+		None,
+		consensus_network,
+	);
+
+	task_manager
+		.spawn_essential_handle()
+		.spawn_blocking("hotstuff network", None, async move {
+			consensus_worker.run().await;
+		});
+}
+
+// TODO just for dev!
+pub fn get_genesis_authorities_from_client<
+	B: BlockT,
+	BE: Backend<B>,
+	C: ClientForHotstuff<B, BE>,
+>(
+	client: Arc<C>,
+) -> AuthorityList {
+	let genesis_block_hash = client
+		.expect_block_hash_from_id(&BlockId::Number(Zero::zero()))
+		.expect("get genesis block hash from client failed");
+
+	let authorities_data = client
+		.executor()
+		.call(genesis_block_hash, "HotstuffApi_authorities", &[], CallContext::Offchain)
+		.expect("call runtime failed");
+
+	let authorities: Vec<AuthorityId> = Decode::decode(&mut &authorities_data[..]).expect("");
+
+	authorities.iter().map(|id| (id.clone(), 0)).collect::<AuthorityList>()
 }

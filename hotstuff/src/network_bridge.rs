@@ -132,6 +132,7 @@ impl<B: BlockT> sc_network_gossip::Validator<B> for GossipValidator<B> {
 }
 
 /// Bridge between the underlying network service, gossiping hotstuff consensus messages
+#[derive(Clone)]
 pub struct HotstuffNetworkBridge<B: BlockT, N: Network<B>, S: Syncing<B>> {
 	pub service: N,
 	pub sync: S,

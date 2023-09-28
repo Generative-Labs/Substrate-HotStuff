@@ -311,16 +311,13 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 			hotstuff,
 		);
 
-		task_manager.spawn_essential_handle().spawn_blocking(
-			"hotstuff-voter",
-			None,
-			hotstuff::consensus::hotstuff_consensus(
-				network,
-				grandpa_link,
-				Arc::new(sync_service),
-				hotstuff_protocol_name,
-				keystore_container.keystore(),
-			)?,
+		hotstuff::consensus::start_hotstuff(
+			network,
+			grandpa_link,
+			Arc::new(sync_service),
+			hotstuff_protocol_name,
+			keystore_container.keystore(),
+			&task_manager,
 		);
 	}
 

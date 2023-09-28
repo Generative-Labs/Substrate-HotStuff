@@ -1,6 +1,6 @@
-pub mod message;
 pub mod aux_schema;
 pub mod import;
+pub mod message;
 pub mod types;
 pub use import::HotstuffBlockImport;
 pub mod aggregator;
