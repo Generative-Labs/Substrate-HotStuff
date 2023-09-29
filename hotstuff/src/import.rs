@@ -1,18 +1,11 @@
 use sc_client_api::Backend;
-use std::sync::Arc;
-// use sc_network_gossip::{ValidatorContext, MessageIntent, ValidationResult};
-// use sc_utils::mpsc::{TracingUnboundedReceiver, tracing_unbounded};
-// use sp_consensus_hotstuff::HOTSTUFF_ENGINE_ID;
-// use sp_core::H256;
 use sp_runtime::{
 	traits::{Block as BlockT, Header as HeaderT, NumberFor},
 	Justification,
 };
+use std::sync::Arc;
 
-// use parking_lot::Mutex;
 use sc_network::{PeerId, ReputationChange};
-// use sp_runtime::traits::Block;
-// use std::collections::HashMap;
 use sp_api::TransactionFor;
 use sp_blockchain::BlockStatus;
 use std::marker::PhantomData;
@@ -131,47 +124,9 @@ where
 		_enacts_change: bool,
 		_initial_sync: bool,
 	) -> Result<(), ConsensusError> {
-		// NOTE: lock must be held through writing to DB to avoid race. this lock
-		//       also implicitly synchronizes the check for last finalized number
-		//       below.
 		let client = self.inner.clone();
 		let _status = client.info();
 
-		// if number <= status.finalized_number && client.hash(number)? == Some(hash) {
-		// 	// This can happen after a forced change (triggered manually from the runtime when
-		// 	// finality is stalled), since the voter will be restarted at the median last finalized
-		// 	// block, which can be lower than the local best finalized block.
-		// 	log::warn!(target: LOG_TARGET, "Re-finalized block #{:?} ({:?}) in the canonical chain,
-		// current best finalized is #{:?}", 			hash,
-		// 			number,
-		// 			status.finalized_number,
-		// 	);
-
-		// 	return Ok(())
-		// }
-
-		// TODO
-
-		// if justification.0 != HOTSTUFF_ENGINE_ID {
-		// 	// TODO: the import queue needs to be refactored to be able dispatch to the correct
-		// 	// `JustificationImport` instance based on `ConsensusEngineId`, or we need to build a
-		// 	// justification import pipeline similar to what we do for `BlockImport`. In the
-		// 	// meantime we'll just drop the justification, since this is only used for BEEFY which
-		// 	// is still WIP.
-		// 	return Ok(())
-		// }
-
-		// let result = finalize_block(
-		// 	self.inner.clone(),
-		// 	&self.authority_set,
-		// 	None,
-		// 	hash,
-		// 	number,
-		// 	justification.into(),
-		// 	initial_sync,
-		// 	Some(&self.justification_sender),
-		// 	self.telemetry.clone(),
-		// );
 		println!("🔥💃🏻 import_justification finalize_block start");
 		let _res: Result<(), sp_blockchain::Error> = self.inner.finalize_block(hash, None, true);
 		match _res {
@@ -221,83 +176,9 @@ where
 	}
 }
 
-// struct PeerData<B: Block> {
-// 	last_voted_on: NumberFor<B>,
-// }
-
 // /// Report specifying a reputation change for a given peer.
 #[derive(Debug, PartialEq)]
 pub(crate) struct PeerReport {
 	pub who: PeerId,
 	pub cost_benefit: ReputationChange,
 }
-
-// /// Keep a simple map of connected peers
-// /// and the most recent voting round they participated in.
-// pub struct KnownPeers<B: Block> {
-// 	live: HashMap<PeerId, PeerData<B>>,
-// }
-
-// impl<B: Block> KnownPeers<B> {
-// 	pub fn new() -> Self {
-// 		Self { live: HashMap::new() }
-// 	}
-// }
-
-// pub(crate) struct GossipValidator<B>
-// where
-// 	B: Block,
-// {
-
-// 	known_peers: Arc<Mutex<KnownPeers<B>>>,
-// }
-
-// // impl<B> GossipValidator<B>
-// // where
-// // 	B: Block,
-// // {
-// // 	#[allow(unused)]
-// // 	pub(crate) fn new(
-// // 		known_peers: Arc<Mutex<KnownPeers<B>>>,
-// // 	) -> (GossipValidator<B>, TracingUnboundedReceiver<PeerReport>) {
-// // 		let (tx, rx) = tracing_unbounded("mpsc_hotstuff_gossip_validator", 10_000);
-// // 		let val = GossipValidator {
-// // 			known_peers,
-// // 		};
-// // 		(val, rx)
-// // 	}
-
-// // }
-
-// // impl<B: BlockT> sc_network_gossip::Validator<B> for GossipValidator<B> {
-
-// // 	/// New peer is connected.
-// // 	fn new_peer(&self, _context: &mut dyn ValidatorContext<B>, _who: &PeerId, _role: ObservedRole)
-// { // 	}
-
-// // 	/// New connection is dropped.
-// // 	fn peer_disconnected(&self, _context: &mut dyn ValidatorContext<B>, _who: &PeerId) {}
-
-// // 	/// Validate consensus message.
-// // 	fn validate(
-// // 		&self,
-// // 		context: &mut dyn ValidatorContext<B>,
-// // 		sender: &PeerId,
-// // 		data: &[u8],
-// // 	) -> ValidationResult<B::Hash> {
-// // 		// topic
-// // 		sc_network_gossip::ValidationResult::Discard
-// // 	}
-
-// // 	/// Produce a closure for validating messages on a given topic.
-// // 	fn message_expired<'a>(&'a self) -> Box<dyn FnMut(B::Hash, &[u8]) -> bool + 'a> {
-// // 		Box::new(move |_topic, _data| false)
-// // 	}
-
-// // 	/// Produce a closure for filtering egress messages.
-// // 	fn message_allowed<'a>(
-// // 		&'a self,
-// // 	) -> Box<dyn FnMut(&PeerId, MessageIntent, &B::Hash, &[u8]) -> bool + 'a> {
-// // 		Box::new(move |_who, _intent, _topic, _data| true)
-// // 	}
-// // }
