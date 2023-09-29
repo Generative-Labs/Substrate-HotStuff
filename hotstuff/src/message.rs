@@ -280,7 +280,7 @@ mod tests {
 		let mut authorities = Vec::new();
 		for i in 0..num {
 			let authority_id = keystore
-				.ed25519_generate_new(HOTSTUFF_KEY_TYPE, Some(format!("//User{}", i).as_str()))
+				.sr25519_generate_new(HOTSTUFF_KEY_TYPE, Some(format!("//User{}", i).as_str()))
 				.expect("Creates authority pair")
 				.into();
 			authorities.push(authority_id);
@@ -310,7 +310,7 @@ mod tests {
 			wight_authorities.push((authority_id.to_owned(), 10));
 
 			let signature = keystore
-				.ed25519_sign(HOTSTUFF_KEY_TYPE, authority_id.as_ref(), digest.as_ref())
+				.sr25519_sign(HOTSTUFF_KEY_TYPE, authority_id.as_ref(), digest.as_ref())
 				.unwrap()
 				.unwrap();
 			qc.add_votes(authority_id.to_owned(), signature.into())
@@ -339,7 +339,7 @@ mod tests {
 			wight_authorities.push((authority_id.to_owned(), 10));
 
 			let signature = keystore
-				.ed25519_sign(HOTSTUFF_KEY_TYPE, authority_id.as_ref(), digest.as_ref())
+				.sr25519_sign(HOTSTUFF_KEY_TYPE, authority_id.as_ref(), digest.as_ref())
 				.unwrap()
 				.unwrap();
 			qc.add_votes(authority_id.to_owned(), signature.into())

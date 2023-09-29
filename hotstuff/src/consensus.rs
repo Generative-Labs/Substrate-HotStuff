@@ -79,12 +79,14 @@ impl<B: BlockT> ConsensusState<B> {
 			signature: None,
 		};
 
+		info!("authority{:#?} make_timeout", authority_id);
+
 		tc.signature = self
 			.keystore
 			.sign_with(
 				AuthorityId::ID,
 				AuthorityId::CRYPTO_ID,
-				authority_id.as_slice(),
+				authority_id.as_ref(),
 				tc.digest().as_ref(),
 			)
 			.map_err(|e| Other(e.to_string()))?

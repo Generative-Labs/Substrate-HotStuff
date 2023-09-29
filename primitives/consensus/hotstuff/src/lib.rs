@@ -29,8 +29,8 @@ pub type ValidatorSetId = u64;
 mod app {
 	use crate::HOTSTUFF_KEY_TYPE;
 
-	use sp_application_crypto::{app_crypto, ed25519};
-	app_crypto!(ed25519, HOTSTUFF_KEY_TYPE);
+	use sp_application_crypto::{app_crypto, sr25519};
+	app_crypto!(sr25519, HOTSTUFF_KEY_TYPE);
 }
 
 sp_application_crypto::with_pair! {
@@ -56,26 +56,6 @@ pub mod sr25519 {
 
 	/// An Hotstuff authority identifier using S/R 25519 as its crypto.
 	pub type AuthorityId = app_sr25519::Public;
-}
-
-pub mod ed25519 {
-	mod app_ed25519 {
-		use crate::HOTSTUFF_KEY_TYPE;
-
-		use sp_application_crypto::{app_crypto, ed25519};
-		app_crypto!(ed25519, HOTSTUFF_KEY_TYPE);
-	}
-
-	sp_application_crypto::with_pair! {
-		/// An Hotstuff authority keypair using Ed25519 as its crypto.
-		pub type AuthorityPair = app_ed25519::Pair;
-	}
-
-	/// An Hotstuff authority signature using Ed25519 as its crypto.
-	pub type AuthoritySignature = app_ed25519::Signature;
-
-	/// An Hotstuff authority identifier using Ed25519 as its crypto.
-	pub type AuthorityId = app_ed25519::Public;
 }
 
 // /// Identity of a Hotstuff authority.

@@ -16,3 +16,7 @@ Cargo.lock
 .idea/
 
 tmp/
+
+.vscode/
+
+*.sh
