@@ -250,7 +250,7 @@ pub struct ConsensusWorker<
 	local_timer: Timer,
 	synchronizer: Synchronizer<B, BE, C>,
 
-	consensus_msg_tx: Sender<ConsensusMessage<B>>,
+	_consensus_msg_tx: Sender<ConsensusMessage<B>>,
 	consensus_msg_rx: Receiver<ConsensusMessage<B>>,
 }
 
@@ -276,7 +276,7 @@ where
 			state: consensus_state,
 			network,
 			local_timer: Timer::new(local_timer_duration),
-			consensus_msg_tx,
+			_consensus_msg_tx: consensus_msg_tx,
 			consensus_msg_rx,
 			client,
 			synchronizer,

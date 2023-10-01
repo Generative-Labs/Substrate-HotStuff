@@ -6,7 +6,7 @@ use std::{
 	time::Duration,
 };
 
-use log::info;
+use log::{info, debug};
 use tokio::time::{interval, Instant, Interval};
 
 use sc_client_api::Backend;
@@ -71,11 +71,11 @@ where
 		&self,
 		proposal: &Proposal<B>,
 	) -> Result<(Proposal<B>, Proposal<B>), HotstuffError> {
-		info!("~~ get_proposal_ancestors, for proposal {:#?}, parent {:#?}", proposal.digest(), proposal.parent_hash());
+		debug!("~~ get_proposal_ancestors, for proposal {:#?}, parent {:#?}", proposal.digest(), proposal.parent_hash());
 		let parent = self.get_proposal_parent(proposal)?;
-		info!("~~ get_proposal_ancestors has parent, for proposal {:#?}, parent {:#?}", proposal.digest(), proposal.parent_hash());
+		debug!("~~ get_proposal_ancestors has parent, for proposal {:#?}, parent {:#?}", proposal.digest(), proposal.parent_hash());
 		let grandpa = self.get_proposal_parent(&parent)?;
-		info!("~~ get_proposal_ancestors has grandpa, for proposal {:#?}, parent {:#?}", proposal.digest(), proposal.parent_hash());
+		debug!("~~ get_proposal_ancestors has grandpa, for proposal {:#?}, parent {:#?}", proposal.digest(), proposal.parent_hash());
 		info!("~~ get_proposal_ancestors, parent {:#?}, grandpa {:#?}", parent, grandpa);
 
 		Ok((parent, grandpa))
@@ -84,19 +84,15 @@ where
 	pub fn get_proposal_parent(
 		&self,
 		proposal: &Proposal<B>,
-	) -> Result<Proposal<B>, HotstuffError> {
-		info!("~~ get_proposal_parent, for proposal {:#?}, parent {:#?}", proposal.digest(), proposal.parent_hash());
-		
+	) -> Result<Proposal<B>, HotstuffError> {		
 		let res = self
 			.store
 			.get(proposal.parent_hash().as_ref())
 			.map_err(|e| {
-				info!("~~ get_proposal_parent, for proposal {:#?}, parent {:#?}, has error {:#?}", proposal.digest(), proposal.parent_hash(), e);
 				HotstuffError::Other(e.to_string())
 			})?;
 
 		if let Some(data) = res {
-			info!("~~ get_proposal_parent, for proposal {:#?}, parent {:#?}, data_len {:#?}", proposal.digest(), proposal.parent_hash(), data.len());
 			let proposal: Proposal<B> =
 				Decode::decode(&mut &data[..]).map_err(|e| HotstuffError::Other(e.to_string()))?;
 			return Ok(proposal)

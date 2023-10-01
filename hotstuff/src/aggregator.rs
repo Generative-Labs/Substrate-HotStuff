@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use log::info;
 use sp_consensus_hotstuff::{AuthorityId, AuthorityList, AuthoritySignature};
 use sp_runtime::traits::Block;
 
