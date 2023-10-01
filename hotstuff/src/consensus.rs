@@ -12,6 +12,7 @@ use log::{error, info};
 use parity_scale_codec::{Decode, Encode};
 use sc_network_gossip::TopicNotification;
 use tokio::sync::mpsc::{channel, Receiver, Sender};
+use async_recursion::async_recursion;
 
 use sc_client_api::{Backend, CallExecutor};
 use sc_network::types::ProtocolName;
@@ -201,7 +202,7 @@ impl<B: BlockT> ConsensusState<B> {
 	}
 
 	pub fn update_high_qc(&mut self, qc: &QC<B>) {
-		if self.high_qc.view < qc.view {
+		if qc.view > self.high_qc.view {
 			self.high_qc = qc.clone()
 		}
 	}
@@ -370,9 +371,10 @@ where
 		Ok(())
 	}
 
+	#[async_recursion]
 	pub async fn handle_proposal(&mut self, proposal: &Proposal<B>) -> Result<(), HotstuffError> {
-		info!(target: "Hotstuff","~~ begin handle proposal view:{:#?}, self.view {}, payload:{:#?}, author {:#?}",
-			proposal.view, self.state.view(), proposal.payload, proposal.author);
+		info!(target: "Hotstuff","~~ handle proposal view:{:#?}, self.view {}, payload:{:#?}, author {:#?}, digest {:#?}",
+			proposal.view, self.state.view(), proposal.payload, proposal.author, proposal.digest());
 
 		self.state.verify_proposal(proposal)?;
 
@@ -390,15 +392,15 @@ where
 		// then get them by network. So should we block here.
 		// TODO
 		if let Err(e) = self.synchronizer.get_proposal_ancestors(proposal).and_then(|(b0, b1)| {
-			if b0.view + 1 == b1.view {
-				// info!(target: "Hotstuff","block {} can finalize", b0.payload);
+			if b0.view  == b1.view + 1 {
+				info!(target: "Hotstuff","~~ block {} can finalize", b0.payload);
 				self.client
 					.finalize_block(b0.payload, None, true)
 					.map_err(|e| FinalizeBlock(e.to_string()))?;
 			}
 			Ok(())
 		}) {
-			info!(target: "Hotstuff","handle_proposal has error when finalize block {:#?}", e);
+			info!(target: "Hotstuff", "handle_proposal has error when finalize block {:#?}", e);
 		}
 
 		if proposal.view != self.state.view() {
@@ -424,19 +426,21 @@ where
 	}
 
 	pub async fn handle_vote(&mut self, vote: &Vote<B>) -> Result<(), HotstuffError> {
-		info!(target: "Hotstuff","~~ begin handle vote, view {:#?}, self.view {}", vote.view,self.state.view());
+		info!(target: "Hotstuff","~~ begin handle vote, view {:#?}, self.view {}, vote author {:#?}, proposal {:#?}", vote.view, self.state.view(), vote.voter, vote.hash);
 		self.state.verify_vote(vote)?;
-		// info!(target: "Hotstuff","~~ begin handle vote  step2 ");
 
 		if let Some(qc) = self.state.add_vote(vote)? {
 			info!(target: "Hotstuff","~~ get enough vote, QC view:{:#?}, hash:{:#?}, self.view {}", qc.view, qc.hash, self.state.view());
 			self.handle_qc(&qc);
 
-			let next_leader = self.state.view_leader(self.state.view() + 1);
-			if self.state.local_authority_id().map_or(false, |id| id == next_leader) {
+			info!(target: "Hotstuff","~~ get enough vote, after handle qc, self view {}", self.state.view());
+			let current_leader = self.state.view_leader(self.state.view());
+			if self.state.local_authority_id().map_or(false, |id| id == current_leader) {
 				if let Some(hash) = self.get_finalize_block_hash() {
+					info!(target: "Hotstuff","make proposal, substrate block hash {:#?}", hash);
+
 					let block = self.state.make_proposal(hash, None)?;
-					let proposal_message = ConsensusMessage::Propose(block);
+					let proposal_message = ConsensusMessage::Propose(block.clone());
 
 					self.network.gossip_engine.lock().register_gossip_message(
 						ConsensusMessage::<B>::gossip_topic(),
@@ -444,10 +448,11 @@ where
 					);
 
 					// Inform oneself to handle the proposal.
-					self.consensus_msg_tx
-						.send(proposal_message)
-						.await
-						.map_err(|e| Other(e.to_string()))?;
+					// self.consensus_msg_tx
+						// .send(proposal_message)
+						// .await
+						// .map_err(|e| Other(e.to_string()))?;
+					self.handle_proposal(&block).await?;	
 				}
 			}
 		}
@@ -456,10 +461,10 @@ where
 	}
 
 	pub fn handle_qc(&mut self, qc: &QC<B>) {
-		if qc.view > self.state.view() {
-			self.state.advance_view();
-			self.state.update_high_qc(qc);
+		if qc.view >= self.state.view() {
+			self.state.advance_view_from_target(qc.view);
 			self.local_timer.reset();
+			self.state.update_high_qc(qc);
 		}
 	}
 

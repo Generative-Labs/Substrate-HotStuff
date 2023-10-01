@@ -69,8 +69,6 @@ impl QCMaker {
 		self.votes.push((voter, vote.signature.ok_or(HotstuffError::NullSignature)?));
 		self.weight += 1;
 
-		info!(target: "Hotstuff","~~ QC weights {}", self.weight);
-
 		if self.weight < 4 || self.weight < (authorities.len() * 2 / 3 + 1) as u64 {
 			return Ok(None)
 		}

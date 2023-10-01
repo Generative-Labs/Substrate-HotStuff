@@ -58,12 +58,13 @@ impl<Block: BlockT> QC<Block> {
 
 		let digest = self.digest();
 		// TODO parallel verify signature ?
-		self.votes.iter().try_for_each(|(authority_id, signature)| {
-			if !AuthorityPair::verify(signature, digest, authority_id) {
-				return Err(InvalidSignature(authority_id.clone()))
+		for (voter, signature) in self.votes.iter(){
+			if !AuthorityPair::verify(signature, digest, voter){
+				info!("~~ qc has invalid signature");
+				return Err(InvalidSignature(voter.clone()))	
 			}
-			Ok(())
-		})
+		}
+		return Ok(())
 	}
 }
 
@@ -72,7 +73,7 @@ impl<Block: BlockT> QC<Block> {
 // So, how is the QC formed by the consensus included in the Substrate Block?
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct Proposal<Block: BlockT> {
-	// QC of parent block.
+	// QC of parent proposal.
 	pub qc: QC<Block>,
 	pub tc: Option<TC<Block>>,
 	// payload represents the block hash in the blockchain that will be finalized.
@@ -121,14 +122,15 @@ impl<Block: BlockT> Proposal<Block> {
 			.map(|s| AuthorityPair::verify(s, self.digest(), &self.author))
 			.map_or(Ok(()), |valid| {
 				if !valid {
+					info!("invalid proposal signature");
 					return Err(InvalidSignature(self.author.to_owned()))
 				}
 				Ok(())
 			})?;
 
-		if self.qc != QC::<Block>::default() {
-			self.qc.verify(authorities)?;
-		}
+		// if self.qc != QC::<Block>::default() {
+		// 	self.qc.verify(authorities)?;
+		// }
 
 		Ok(())
 	}
@@ -205,10 +207,10 @@ impl<Block: BlockT> Timeout<Block> {
 			})?;
 
 		// Every hotstuff start, it's high qc is null.
-		if self.high_qc != QC::<Block>::default() {
-			info!(target: "Hotstuff","~~ Timeout try verify it's high qc {:#?}", self.high_qc);
-			self.high_qc.verify(&authorities)?;
-		}
+		// if self.high_qc != QC::<Block>::default() {
+		// 	info!(target: "Hotstuff","~~ Timeout try verify it's high qc {:#?}", self.high_qc);
+		// 	self.high_qc.verify(&authorities)?;
+		// }
 		Ok(())
 	}
 }
