@@ -79,7 +79,7 @@ impl<B: BlockT> ConsensusState<B> {
 			signature: None,
 		};
 
-		info!("authority{:#?} make_timeout", authority_id);
+		// info!(target: "Hotstuff","authority {} make_timeout", authority_id);
 
 		tc.signature = self
 			.keystore
@@ -125,6 +125,8 @@ impl<B: BlockT> ConsensusState<B> {
 	}
 
 	pub fn make_vote(&mut self, proposal: &Proposal<B>) -> Option<Vote<B>> {
+		// info!(target: "Hotstuff","~~ make vote for proposal step1, proposal.view {},
+		// self.last_voted_view {}",proposal.view , self.last_voted_view );
 		let author_id = self.local_authority_id()?;
 
 		if proposal.view <= self.last_voted_view {
@@ -164,8 +166,8 @@ impl<B: BlockT> ConsensusState<B> {
 	}
 
 	pub fn verify_proposal(&self, proposal: &Proposal<B>) -> Result<(), HotstuffError> {
-		if proposal.author.eq(&self.view_leader(proposal.view)) {
-			return Err(WrongProposal)
+		if !proposal.author.eq(&self.view_leader(proposal.view)) {
+			return Err(WrongProposer)
 		}
 
 		// TODO how process authority changed.
@@ -208,6 +210,12 @@ impl<B: BlockT> ConsensusState<B> {
 		self.view += 1;
 
 		return true
+	}
+
+	pub fn advance_view_from_target(&mut self, view: ViewNumber) {
+		if self.view >= view {
+			self.view = view + 1;
+		}
 	}
 
 	pub fn view_leader(&self, view: ViewNumber) -> AuthorityId {
@@ -276,26 +284,45 @@ where
 
 	pub async fn run(&mut self) {
 		loop {
-			let result = tokio::select! {
+			let _ = tokio::select! {
 				_ = &mut self.local_timer => self.handle_local_timer().await,
 				Some(message) = self.consensus_msg_rx.recv()=> match message {
-					Propose(proposal) => self.handle_proposal(&proposal).await,
-					Vote(vote) => self.handle_vote(&vote).await,
-					Timeout(timeout) => self.handle_timeout(&timeout).await,
-					TC(tc) => self.handle_tc(&tc).await,
+					Propose(proposal) => {
+						match self.handle_proposal(&proposal).await{
+							Ok(_) => {},
+							Err(e) =>  info!(target: "Hotstuff","handle_proposal has error {:#?}", e),
+						};
+						Ok(())
+					},
+					Vote(vote) => {
+						match self.handle_vote(&vote).await{
+							Ok(_) => {},
+							Err(e) => info!(target: "Hotstuff","handle_vote has error {:#?}", e),
+						};
+						Ok(())
+					},
+					Timeout(timeout) => {
+						match self.handle_timeout(&timeout).await{
+							Ok(_) => {},
+							Err(e) => info!(target: "Hotstuff","handle_timeout has error {:#?}", e),
+						};
+						Ok(())
+					},
+					TC(tc) => {
+						match self.handle_tc(&tc).await{
+							Ok(_) => {},
+							Err(e) =>  info!(target: "Hotstuff","handle_tc has error {:#?}", e),
+						}
+						Ok(())
+					},
 					_ => Ok(()),
 				}
 			};
-
-			if let Err(e) = result {
-				error!("ConsensusWorker has error: {:#?}", e)
-			}
 		}
 	}
 
 	pub async fn handle_local_timer(&mut self) -> Result<(), HotstuffError> {
-		info!("local timeout, id: {}", self.network.local_peer_id());
-
+		self.local_timer.reset();
 		self.state.increase_last_voted_view();
 
 		let timeout = self.state.make_timeout()?;
@@ -310,15 +337,19 @@ where
 	}
 
 	pub async fn handle_timeout(&mut self, timeout: &Timeout<B>) -> Result<(), HotstuffError> {
+		info!(target: "Hotstuff","~~ handle_timeout, timeout_view {},self.view {}, timeout.qc.view {}",
+			 timeout.view, self.state.view(),timeout.high_qc.view);
+
 		if self.state.view() > timeout.view {
 			return Ok(())
 		}
 
 		self.state.verify_timeout(timeout)?;
+
 		self.handle_qc(&timeout.high_qc);
 
 		if let Some(tc) = self.state.add_timeout(timeout)? {
-			if tc.view > self.state.view() {
+			if tc.view >= self.state.view() {
 				self.state.advance_view();
 				self.local_timer.reset();
 			}
@@ -331,6 +362,7 @@ where
 				.register_gossip_message(ConsensusMessage::<B>::gossip_topic(), message.encode());
 
 			if self.state.is_leader() {
+				info!(target: "Hotstuff","~~ handle_timeout leader.view {}, generate view after TC {}", self.state.view(), timeout.view);
 				self.generate_proposal(Some(tc)).await?;
 			}
 		}
@@ -339,6 +371,9 @@ where
 	}
 
 	pub async fn handle_proposal(&mut self, proposal: &Proposal<B>) -> Result<(), HotstuffError> {
+		info!(target: "Hotstuff","~~ begin handle proposal view:{:#?}, self.view {}, payload:{:#?}, author {:#?}",
+			proposal.view, self.state.view(), proposal.payload, proposal.author);
+
 		self.state.verify_proposal(proposal)?;
 
 		self.handle_qc(&proposal.qc);
@@ -349,16 +384,21 @@ where
 			}
 		});
 
-		// Try get proposal ancestors. If we can't get them from local store,
-		// then get them by network. So should we block here.
-		let (b0, b1) = self.synchronizer.get_proposal_ancestors(proposal)?;
 		self.synchronizer.save_proposal(proposal)?;
 
-		if b0.view + 1 == b1.view {
-			info!("block {} can finalize", b0.payload);
-			self.client
-				.finalize_block(b0.payload, None, true)
-				.map_err(|e| Other(e.to_string()))?;
+		// Try get proposal ancestors. If we can't get them from local store,
+		// then get them by network. So should we block here.
+		// TODO
+		if let Err(e) = self.synchronizer.get_proposal_ancestors(proposal).and_then(|(b0, b1)| {
+			if b0.view + 1 == b1.view {
+				// info!(target: "Hotstuff","block {} can finalize", b0.payload);
+				self.client
+					.finalize_block(b0.payload, None, true)
+					.map_err(|e| FinalizeBlock(e.to_string()))?;
+			}
+			Ok(())
+		}) {
+			info!(target: "Hotstuff","handle_proposal has error when finalize block {:#?}", e);
 		}
 
 		if proposal.view != self.state.view() {
@@ -366,6 +406,7 @@ where
 		}
 
 		if let Some(vote) = self.state.make_vote(&proposal) {
+			info!(target: "Hotstuff","!!~~ handle proposal make vote for proposal");
 			let next_leader = self.state.view_leader(self.state.view() + 1);
 			if self.state.local_authority_id().map_or(false, |id| id == next_leader) {
 				self.handle_vote(&vote).await?;
@@ -383,9 +424,12 @@ where
 	}
 
 	pub async fn handle_vote(&mut self, vote: &Vote<B>) -> Result<(), HotstuffError> {
+		info!(target: "Hotstuff","~~ begin handle vote, view {:#?}, self.view {}", vote.view,self.state.view());
 		self.state.verify_vote(vote)?;
+		// info!(target: "Hotstuff","~~ begin handle vote  step2 ");
 
 		if let Some(qc) = self.state.add_vote(vote)? {
+			info!(target: "Hotstuff","~~ get enough vote, QC view:{:#?}, hash:{:#?}, self.view {}", qc.view, qc.hash, self.state.view());
 			self.handle_qc(&qc);
 
 			let next_leader = self.state.view_leader(self.state.view() + 1);
@@ -420,12 +464,14 @@ where
 	}
 
 	pub async fn handle_tc(&mut self, tc: &TC<B>) -> Result<(), HotstuffError> {
+		info!(target: "Hotstuff","handle tc from network, self.view {}, {:#?}",self.state.view(), tc.view);
 		self.state.verify_tc(tc)?;
 
 		self.state.advance_view();
 		self.local_timer.reset();
 
 		if self.state.is_leader() {
+			info!(target: "Hotstuff","generate_proposal when receive valid tc, tc.view {}, self.view {}",tc.view, self.state.view());
 			self.generate_proposal(None).await?;
 		}
 
@@ -433,9 +479,11 @@ where
 	}
 
 	pub async fn generate_proposal(&mut self, tc: Option<TC<B>>) -> Result<(), HotstuffError> {
+		info!(target: "Hotstuff","~~~~ try generate proposal");
 		if let Some(hash) = self.get_finalize_block_hash() {
-			let block = self.state.make_proposal(hash, tc)?;
-			let proposal_message = ConsensusMessage::Propose(block);
+			info!(target: "Hotstuff","~~~ generate proposal for substrate hash{}, self.view {}", hash, self.state.view());
+			let proposal = self.state.make_proposal(hash, tc)?;
+			let proposal_message = ConsensusMessage::Propose(proposal.clone());
 
 			self.network.gossip_engine.lock().register_gossip_message(
 				ConsensusMessage::<B>::gossip_topic(),
@@ -443,10 +491,11 @@ where
 			);
 
 			// Inform oneself to handle the proposal.
-			self.consensus_msg_tx
-				.send(proposal_message)
-				.await
-				.map_err(|e| Other(e.to_string()))?;
+			// self.consensus_msg_tx
+			// 	.send(proposal_message)
+			// 	.await
+			// 	.map_err(|e| Other(e.to_string()))?;
+			self.handle_proposal(&proposal).await?;
 		}
 
 		Ok(())
@@ -523,6 +572,7 @@ where
 	) -> Result<(), HotstuffError> {
 		let message: ConsensusMessage<B> =
 			Decode::decode(&mut &notification.message[..]).map_err(|e| Other(e.to_string()))?;
+
 		self.consensus_msg_tx.try_send(message).map_err(|e| Other(e.to_string()))
 	}
 }
@@ -565,7 +615,7 @@ pub fn start_hotstuff<B: BlockT, BE: 'static, C, N, S, SC>(
 		client,
 		network.clone(),
 		synchronizer,
-		1000,
+		10000,
 		consensus_msg_tx.clone(),
 		consensus_msg_rx,
 	);

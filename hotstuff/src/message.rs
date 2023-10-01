@@ -1,5 +1,6 @@
 use std::{collections::HashSet, marker::PhantomData};
 
+use log::info;
 use parity_scale_codec::{Decode, Encode};
 use sp_core::Pair;
 use sp_runtime::traits::{Block as BlockT, Hash as HashT, Header as HeaderT};
@@ -8,7 +9,7 @@ use crate::primitives::{HotstuffError, HotstuffError::*, ViewNumber};
 use sp_consensus_hotstuff::{AuthorityId, AuthorityList, AuthorityPair, AuthoritySignature};
 
 /// Quorum certificate for a block.
-#[derive(Debug, Clone, Encode, Decode)]
+#[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
 pub struct QC<Block: BlockT> {
 	/// Hotstuff proposal hash.
 	/// TODO rename to proposal_hash.
@@ -125,7 +126,9 @@ impl<Block: BlockT> Proposal<Block> {
 				Ok(())
 			})?;
 
-		self.qc.verify(authorities)?;
+		if self.qc != QC::<Block>::default() {
+			self.qc.verify(authorities)?;
+		}
 
 		Ok(())
 	}
@@ -201,7 +204,12 @@ impl<Block: BlockT> Timeout<Block> {
 				Ok(())
 			})?;
 
-		self.high_qc.verify(&authorities)
+		// Every hotstuff start, it's high qc is null.
+		if self.high_qc != QC::<Block>::default() {
+			info!(target: "Hotstuff","~~ Timeout try verify it's high qc {:#?}", self.high_qc);
+			self.high_qc.verify(&authorities)?;
+		}
+		Ok(())
 	}
 }
 

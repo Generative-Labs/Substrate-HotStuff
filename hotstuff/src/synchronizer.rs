@@ -59,7 +59,7 @@ where
 
 		self.store
 			.set(key.as_ref(), &value)
-			.map_err(|e| HotstuffError::Other(e.to_string()))
+			.map_err(|e| HotstuffError::SaveProposal(e.to_string()))
 	}
 
 	// pub fn get_proposal(&mut self, hash: B::Hash) {}

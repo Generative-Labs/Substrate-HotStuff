@@ -22,13 +22,17 @@ pub enum HotstuffError {
 	// The voter is not in authorities.
 	NotAuthority,
 
-	WrongProposal,
+	WrongProposer,
 
 	ProposalNotFound,
 
 	InvalidVote,
 
 	InvalidTC,
+
+	FinalizeBlock(String),
+
+	SaveProposal(String),
 
 	Other(String),
 }

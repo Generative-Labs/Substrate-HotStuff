@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use log::info;
 use sp_consensus_hotstuff::{AuthorityId, AuthorityList, AuthoritySignature};
 use sp_runtime::traits::Block;
 
@@ -59,17 +60,16 @@ impl QCMaker {
 		vote: Vote<B>,
 		authorities: &AuthorityList,
 	) -> Result<Option<QC<B>>, HotstuffError> {
-		let voter = vote.voter;
-
 		// TODO check voter weather in authorities?
-
-		self.votes
-			.iter()
-			.find(|(id, _)| id.eq(&voter))
-			.ok_or_else(|| AuthorityReuse(voter.to_owned()))?;
+		let voter = vote.voter;
+		if self.votes.iter().any(|(id, _)| id.eq(&voter)) {
+			return Err(AuthorityReuse(voter.to_owned()))
+		}
 
 		self.votes.push((voter, vote.signature.ok_or(HotstuffError::NullSignature)?));
 		self.weight += 1;
+
+		info!(target: "Hotstuff","~~ QC weights {}", self.weight);
 
 		if self.weight < 4 || self.weight < (authorities.len() * 2 / 3 + 1) as u64 {
 			return Ok(None)
@@ -96,15 +96,14 @@ impl TCMaker {
 	) -> Result<Option<TC<B>>, HotstuffError> {
 		let voter = timeout.voter;
 		// TODO check voter weather in authorities?
-
-		self.votes
-			.iter()
-			.find(|(id, _, _)| id.eq(&voter))
-			.ok_or_else(|| AuthorityReuse(voter.to_owned()))?;
+		if self.votes.iter().any(|(id, _, _)| id.eq(&voter)) {
+			return Err(AuthorityReuse(voter.to_owned()))
+		}
 
 		self.votes.push((voter, timeout.signature.ok_or(NullSignature)?, timeout.view));
 		self.weight += 1;
 
+		//info!(target: "Hotstuff","~~ tc weights {}", self.weight);
 		if self.weight < 4 || self.weight < (authorities.len() * 2 / 3 + 1) as u64 {
 			return Ok(None)
 		}
