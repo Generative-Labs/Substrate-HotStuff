@@ -6,7 +6,7 @@ use std::{
 	time::Duration,
 };
 
-use log::{info, debug};
+use log::{debug, info};
 use tokio::time::{interval, Instant, Interval};
 
 use sc_client_api::Backend;
@@ -71,11 +71,28 @@ where
 		&self,
 		proposal: &Proposal<B>,
 	) -> Result<(Proposal<B>, Proposal<B>), HotstuffError> {
-		debug!("~~ get_proposal_ancestors, for proposal {:#?}, parent {:#?}", proposal.digest(), proposal.parent_hash());
+		debug!(
+			"~~ get_proposal_ancestors, for proposal {:#?}, parent {:#?}",
+			proposal.digest(),
+			proposal.parent_hash()
+		);
+
 		let parent = self.get_proposal_parent(proposal)?;
-		debug!("~~ get_proposal_ancestors has parent, for proposal {:#?}, parent {:#?}", proposal.digest(), proposal.parent_hash());
+
+		debug!(
+			"~~ get_proposal_ancestors has parent, for proposal {:#?}, parent {:#?}",
+			proposal.digest(),
+			proposal.parent_hash()
+		);
+
 		let grandpa = self.get_proposal_parent(&parent)?;
-		debug!("~~ get_proposal_ancestors has grandpa, for proposal {:#?}, parent {:#?}", proposal.digest(), proposal.parent_hash());
+
+		debug!(
+			"~~ get_proposal_ancestors has grandpa, for proposal {:#?}, parent {:#?}",
+			proposal.digest(),
+			proposal.parent_hash()
+		);
+
 		info!("~~ get_proposal_ancestors, parent {:#?}, grandpa {:#?}", parent, grandpa);
 
 		Ok((parent, grandpa))
@@ -84,13 +101,11 @@ where
 	pub fn get_proposal_parent(
 		&self,
 		proposal: &Proposal<B>,
-	) -> Result<Proposal<B>, HotstuffError> {		
+	) -> Result<Proposal<B>, HotstuffError> {
 		let res = self
 			.store
 			.get(proposal.parent_hash().as_ref())
-			.map_err(|e| {
-				HotstuffError::Other(e.to_string())
-			})?;
+			.map_err(|e| HotstuffError::Other(e.to_string()))?;
 
 		if let Some(data) = res {
 			let proposal: Proposal<B> =

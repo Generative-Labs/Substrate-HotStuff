@@ -58,10 +58,10 @@ impl<Block: BlockT> QC<Block> {
 
 		let digest = self.digest();
 		// TODO parallel verify signature ?
-		for (voter, signature) in self.votes.iter(){
-			if !AuthorityPair::verify(signature, digest, voter){
+		for (voter, signature) in self.votes.iter() {
+			if !AuthorityPair::verify(signature, digest, voter) {
 				info!("~~ qc has invalid signature");
-				return Err(InvalidSignature(voter.clone()))	
+				return Err(InvalidSignature(voter.clone()))
 			}
 		}
 		return Ok(())
@@ -286,7 +286,7 @@ mod tests {
 	type TestExtrinsic = TestXt<(), ()>;
 	type TestBlock = sp_runtime::testing::Block<TestExtrinsic>;
 
-	fn generate_ed25519_authorities(num: usize, keystore: &KeystorePtr) -> Vec<AuthorityId> {
+	fn generate_sr25519_authorities(num: usize, keystore: &KeystorePtr) -> Vec<AuthorityId> {
 		let mut authorities = Vec::new();
 		for i in 0..num {
 			let authority_id = keystore
@@ -307,7 +307,7 @@ mod tests {
 			.expect("Creates keystore")
 			.into();
 
-		let authorities = generate_ed25519_authorities(4, &keystore);
+		let authorities = generate_sr25519_authorities(4, &keystore);
 		let mut wight_authorities = AuthorityList::new();
 
 		let test_block =
@@ -336,7 +336,7 @@ mod tests {
 			.expect("Creates keystore")
 			.into();
 
-		let authorities = generate_ed25519_authorities(3, &keystore);
+		let authorities = generate_sr25519_authorities(3, &keystore);
 		let mut wight_authorities = AuthorityList::new();
 
 		let test_block =

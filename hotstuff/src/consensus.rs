@@ -7,15 +7,15 @@ use std::{
 	task::{Context, Poll},
 };
 
+use async_recursion::async_recursion;
 use futures::StreamExt;
 use log::{error, info};
 use parity_scale_codec::{Decode, Encode};
-use sc_network_gossip::TopicNotification;
 use tokio::sync::mpsc::{channel, Receiver, Sender};
-use async_recursion::async_recursion;
 
 use sc_client_api::{Backend, CallExecutor};
 use sc_network::types::ProtocolName;
+use sc_network_gossip::TopicNotification;
 use sc_service::TaskManager;
 use sp_application_crypto::AppCrypto;
 use sp_consensus_hotstuff::{AuthorityId, AuthorityList, AuthoritySignature, HOTSTUFF_KEY_TYPE};
@@ -30,7 +30,7 @@ use crate::{
 	aggregator::Aggregator,
 	client::{ClientForHotstuff, LinkHalf},
 	message::{ConsensusMessage, ConsensusMessage::*, Proposal, Timeout, Vote, QC, TC},
-	network_bridge::{HotstuffNetworkBridge, Network as NetworkT, Syncing as SyncingT},
+	network::{HotstuffNetworkBridge, Network as NetworkT, Syncing as SyncingT},
 	primitives::{HotstuffError, HotstuffError::*, ViewNumber},
 	synchronizer::{Synchronizer, Timer},
 };
@@ -392,7 +392,7 @@ where
 		// then get them by network. So should we block here.
 		// TODO
 		if let Err(e) = self.synchronizer.get_proposal_ancestors(proposal).and_then(|(b0, b1)| {
-			if b0.view  == b1.view + 1 {
+			if b0.view == b1.view + 1 {
 				info!(target: "Hotstuff","~~ block {} can finalize", b0.payload);
 				self.client
 					.finalize_block(b0.payload, None, true)
@@ -449,10 +449,10 @@ where
 
 					// Inform oneself to handle the proposal.
 					// self.consensus_msg_tx
-						// .send(proposal_message)
-						// .await
-						// .map_err(|e| Other(e.to_string()))?;
-					self.handle_proposal(&block).await?;	
+					// .send(proposal_message)
+					// .await
+					// .map_err(|e| Other(e.to_string()))?;
+					self.handle_proposal(&block).await?;
 				}
 			}
 		}
