@@ -18,7 +18,6 @@ futures-timer = "3.0.1"
 tokio = { version = "1.22.0", features = ["rt", "time", "macros", "sync"] }
 # codec = { default-features = false }
 serde = { version = "1.0", features = ["derive"] }
-crypto =  { path="../crypto" }
 sc-basic-authorship = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 sc-utils = { version = "4.0.0-dev",  git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 finality-grandpa = { version = "0.16.2", features = ["derive-codec"] }
@@ -48,18 +47,6 @@ libp2p-identity = { version = "0.2.0", features = ["peerid", "ed25519"]}
 scale-info = { version = "2.5.0", default-features = false, features = ["derive"] }
 sp-keyring = { version = "24.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 ed25519-dalek = { version = "1.0.1", features = ["batch"] }
-
-# [features]
-# default = ["std"]
-# std = [
-# 	"codec/std",
-# 	"sp-api/std",
-# 	"sp-application-crypto/std",
-# 	"sp-inherents/std",
-# 	"sp-runtime/std",
-
-# 	"scale-info/std",
-# ]
 
 [dev-dependencies]
 parking_lot = "0.12.1"

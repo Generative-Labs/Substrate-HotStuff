@@ -8,7 +8,7 @@ use sc_client_api::{
 use sc_consensus::BlockImport;
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::{Error as ClientError, HeaderBackend, HeaderMetadata};
-use sp_consensus_grandpa::AuthorityList;
+use sp_consensus_hotstuff::AuthorityList;
 use sp_core::traits::CallContext;
 use sp_runtime::{
 	generic::BlockId,

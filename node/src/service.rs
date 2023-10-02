@@ -109,21 +109,14 @@ pub fn new_partial(
 		client.clone(),
 	);
 
-	// let (grandpa_block_import, grandpa_link) = sc_consensus_grandpafork::block_import(
-	// 	client.clone(),
-	// 	&client,
-	// 	select_chain.clone(),
-	// 	telemetry.as_ref().map(|x| x.handle()),
-	// )?;
-
-	let (grandpa_block_import, grandpa_link) = hotstuff::block_import(client.clone(), &client)?;
+	let (hotstuff_block_import, grandpa_link) = hotstuff::block_import(client.clone(), &client)?;
 
 	let slot_duration = sc_consensus_hotstuff::slot_duration(&*client)?;
 
 	let import_queue =
 		sc_consensus_hotstuff::import_queue::<HotstuffPair, _, _, _, _, _>(ImportQueueParams {
-			block_import: grandpa_block_import.clone(),
-			justification_import: Some(Box::new(grandpa_block_import.clone())),
+			block_import: hotstuff_block_import.clone(),
+			justification_import: Some(Box::new(hotstuff_block_import.clone())),
 			client: client.clone(),
 			create_inherent_data_providers: move |_, ()| async move {
 				let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
@@ -151,7 +144,7 @@ pub fn new_partial(
 		keystore_container,
 		select_chain,
 		transaction_pool,
-		other: (grandpa_block_import, grandpa_link, telemetry),
+		other: (hotstuff_block_import, grandpa_link, telemetry),
 	})
 }
 

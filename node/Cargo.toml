@@ -90,15 +90,7 @@ rand = "0.7.3"
 thiserror = "1.0.21"
 anyhow = "1.0.38"
 
-crypto = { path = "../crypto" }
-store = { path = "../store" }
-consensus = { path = "../consensus" }
-mempool = { path = "../mempool" }
-
-
 hotstuff = {  path = "../hotstuff" }
-
-
 
 [build-dependencies]
 substrate-build-script-utils = { version = "3.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
