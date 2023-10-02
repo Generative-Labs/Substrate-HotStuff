@@ -1,4 +1,3 @@
-
 //! Communication streams for the polite-grandpa networking protocol.
 //!
 //! GRANDPA nodes communicate over a gossip network, where messages are not sent to

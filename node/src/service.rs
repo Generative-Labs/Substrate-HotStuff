@@ -7,7 +7,7 @@ use sc_client_api::{Backend, BlockBackend};
 // use sc_consensus_aura::{ImportQueueParams, StartAuraParams, SlotProportion};
 // use sc_consensus_grandpa::{SharedVoterState, ClientForGrandpa};
 
-use sc_consensus_hotstuff::{ImportQueueParams, StartHotstuffParams, SlotProportion};
+use sc_consensus_hotstuff::{ImportQueueParams, SlotProportion, StartHotstuffParams};
 
 pub use sc_executor::NativeElseWasmExecutor;
 // use sc_network_gossip::GossipEngine;
@@ -18,7 +18,6 @@ use sc_transaction_pool_api::OffchainTransactionPoolFactory;
 
 // use sp_consensus_aura::sr25519::AuthorityPair as AuraPair;
 use sp_consensus_hotstuff::sr25519::AuthorityPair as HotstuffPair;
-
 
 use std::sync::Arc;
 
@@ -117,10 +116,7 @@ pub fn new_partial(
 	// 	telemetry.as_ref().map(|x| x.handle()),
 	// )?;
 
-	let (grandpa_block_import, grandpa_link) = hotstuff::block_import(
-		client.clone(),
-		&client,
-	)?;
+	let (grandpa_block_import, grandpa_link) = hotstuff::block_import(client.clone(), &client)?;
 
 	let slot_duration = sc_consensus_hotstuff::slot_duration(&*client)?;
 
@@ -159,8 +155,6 @@ pub fn new_partial(
 	})
 }
 
-
-
 /// Builds a new service for a full client.
 pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 	let sc_service::PartialComponents {
@@ -176,7 +170,7 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 	// let hotstuff_client = client.clone();
 
 	// task_manager.spawn_essential_handle().spawn_blocking(
-	// 	"hotstuff-voter-test", None, 
+	// 	"hotstuff-voter-test", None,
 	// 	sc_hotstuff_finality::run_hotstuff_voter_test(client.clone())?
 	// );
 
@@ -190,11 +184,12 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 		grandpa_protocol_name.clone(),
 	));
 
-	let hotstuff_protocol_name = hotstuff::voter_task::standard_name(
-		&client.block_hash(0).ok().flatten().expect("Genesis block exists; qed"), 
-		&config.chain_spec);
+	let hotstuff_protocol_name = hotstuff::config::standard_name(
+		&client.block_hash(0).ok().flatten().expect("Genesis block exists; qed"),
+		&config.chain_spec,
+	);
 
-	net_config.add_notification_protocol(hotstuff::voter_task::hotstuff_peers_set_config(
+	net_config.add_notification_protocol(hotstuff::config::hotstuff_peers_set_config(
 		hotstuff_protocol_name.clone(),
 	));
 
@@ -277,52 +272,52 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 
 		let slot_duration = sc_consensus_hotstuff::slot_duration(&*client)?;
 
-		let hotstuff = sc_consensus_hotstuff::start_hotstuff::<HotstuffPair, _, _, _, _, _, _, _, _, _, _>(
-			StartHotstuffParams {
-				slot_duration,
-				client,
-				select_chain,
-				block_import,
-				proposer_factory,
-				create_inherent_data_providers: move |_, ()| async move {
-					let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
+		let hotstuff =
+			sc_consensus_hotstuff::start_hotstuff::<HotstuffPair, _, _, _, _, _, _, _, _, _, _>(
+				StartHotstuffParams {
+					slot_duration,
+					client,
+					select_chain,
+					block_import,
+					proposer_factory,
+					create_inherent_data_providers: move |_, ()| async move {
+						let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
 
-					let slot =
+						let slot =
 						sp_consensus_hotstuff::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
 							*timestamp,
 							slot_duration,
 						);
 
-					Ok((slot, timestamp))
+						Ok((slot, timestamp))
+					},
+					force_authoring,
+					backoff_authoring_blocks,
+					keystore: keystore_container.keystore(),
+					sync_oracle: sync_service.clone(),
+					justification_sync_link: sync_service.clone(),
+					block_proposal_slot_portion: SlotProportion::new(2f32 / 3f32),
+					max_block_proposal_slot_portion: None,
+					telemetry: telemetry.as_ref().map(|x| x.handle()),
+					compatibility_mode: Default::default(),
 				},
-				force_authoring,
-				backoff_authoring_blocks,
-				keystore: keystore_container.keystore(),
-				sync_oracle: sync_service.clone(),
-				justification_sync_link: sync_service.clone(),
-				block_proposal_slot_portion: SlotProportion::new(2f32 / 3f32),
-				max_block_proposal_slot_portion: None,
-				telemetry: telemetry.as_ref().map(|x| x.handle()),
-				compatibility_mode: Default::default(),
-			},
-		)?;
+			)?;
 
 		// the hotstuff authoring task is considered essential, i.e. if it
 		// fails we take down the service with it.
-		task_manager
-			.spawn_essential_handle()
-			.spawn_blocking("hotstuff", Some("block-authoring"), hotstuff);
-		
 		task_manager.spawn_essential_handle().spawn_blocking(
-			"hotstuff-voter",
-			None,
-			hotstuff::run_hotstuff_voter(
-				network,
-				grandpa_link,
-				Arc::new(sync_service),
-				hotstuff_protocol_name,
-				keystore_container.keystore(),
-			)?,
+			"hotstuff",
+			Some("block-authoring"),
+			hotstuff,
+		);
+
+		hotstuff::consensus::start_hotstuff(
+			network,
+			grandpa_link,
+			Arc::new(sync_service),
+			hotstuff_protocol_name,
+			keystore_container.keystore(),
+			&task_manager,
 		);
 	}
 

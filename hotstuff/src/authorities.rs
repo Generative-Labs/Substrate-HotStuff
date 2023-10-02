@@ -1,12 +1,10 @@
-use std::{marker::PhantomData, ops::Add};
+use std::{fmt::Debug, marker::PhantomData, ops::Add};
+
 use finality_grandpa::voter_set::VoterSet;
 use parity_scale_codec::{Decode, Encode};
-
 use parking_lot::MappedMutexGuard;
 use sc_consensus::shared_data::{SharedData, SharedDataLocked};
-use sp_consensus_grandpa::{AuthorityList, AuthorityId};
-
-use std::fmt::Debug;
+use sp_consensus_grandpa::{AuthorityId, AuthorityList};
 
 /// A shared authority set.
 pub struct SharedAuthoritySet<H, N> {
@@ -58,7 +56,6 @@ impl<H, N> SharedAuthoritySet<H, N> {
 #[derive(Debug, Encode, Decode, Clone, PartialEq)]
 pub struct AuthoritySetChanges<N>(Vec<(u64, N)>);
 
-
 impl<N: Ord + Clone> AuthoritySetChanges<N> {
 	pub(crate) fn empty() -> Self {
 		Self(Default::default())
@@ -68,16 +65,14 @@ impl<N: Ord + Clone> AuthoritySetChanges<N> {
 /// A set of authorities.
 #[derive(Debug, Clone, PartialEq)]
 pub struct AuthoritySet<H, N> {
-    _phantom: PhantomData<H>,
+	_phantom: PhantomData<H>,
 	pub current_authorities: AuthorityList,
 	pub(crate) authority_set_changes: AuthoritySetChanges<N>,
 }
 
-impl<H, N> From<AuthoritySet<H, N>> for SharedAuthoritySet<H, N> {   
-	 fn from(set: AuthoritySet<H, N>) -> Self {       
-		SharedAuthoritySet {
-			inner: SharedData::new(set)
-		}
+impl<H, N> From<AuthoritySet<H, N>> for SharedAuthoritySet<H, N> {
+	fn from(set: AuthoritySet<H, N>) -> Self {
+		SharedAuthoritySet { inner: SharedData::new(set) }
 	}
 }
 
@@ -101,10 +96,8 @@ where
 			current_authorities: initial,
 			authority_set_changes: AuthoritySetChanges::empty(),
 			_phantom: PhantomData,
-
 		})
 	}
-
 
 	/// Create a new authority set.
 	#[allow(unused)]
@@ -122,5 +115,4 @@ where
 			_phantom: PhantomData,
 		})
 	}
-
 }

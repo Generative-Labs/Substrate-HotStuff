@@ -1,4 +1,3 @@
-
 use sc_utils::notification::{NotificationSender, NotificationStream, TracingKeyStr};
 
 use crate::justification::GrandpaJustification;

@@ -1,4 +1,3 @@
-
 use crate::HOTSTUFF_ENGINE_ID;
 use codec::{Codec, Encode};
 use sp_consensus_slots::Slot;

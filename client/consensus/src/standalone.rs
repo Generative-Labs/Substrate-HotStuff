@@ -1,4 +1,3 @@
-
 //! Standalone functions used within the implementation of Hotstuff.
 
 use std::fmt::Debug;
@@ -23,7 +22,7 @@ use sp_runtime::{
 pub use sc_consensus_slots::check_equivocation;
 
 use super::{
-	HotstuffApi, AuthorityId, CompatibilityMode, CompatibleDigestItem, SlotDuration, LOG_TARGET,
+	AuthorityId, CompatibilityMode, CompatibleDigestItem, HotstuffApi, SlotDuration, LOG_TARGET,
 };
 
 /// Get the slot duration for Hotstuff by reading from a runtime API at the best block's state.
@@ -160,7 +159,8 @@ pub fn find_pre_digest<B: BlockT, Signature: Codec>(
 	let mut pre_digest: Option<Slot> = None;
 	for log in header.digest().logs() {
 		trace!(target: LOG_TARGET, "Checking log {:?}", log);
-		match (CompatibleDigestItem::<Signature>::as_hotstuff_pre_digest(log), pre_digest.is_some()) {
+		match (CompatibleDigestItem::<Signature>::as_hotstuff_pre_digest(log), pre_digest.is_some())
+		{
 			(Some(_), true) => return Err(PreDigestLookupError::MultipleHeaders),
 			(None, _) => trace!(target: LOG_TARGET, "Ignoring digest not meant for us"),
 			(s, false) => pre_digest = s,

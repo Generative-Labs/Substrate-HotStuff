@@ -1,10 +1,9 @@
-
-use sp_blockchain::Result as ClientResult;
-use sp_runtime::traits::{Block as BlockT, NumberFor};
 use sc_client_api::backend::AuxStore;
+use sp_blockchain::Result as ClientResult;
 use sp_consensus_grandpa::AuthorityList;
+use sp_runtime::traits::{Block as BlockT, NumberFor};
 
-use crate::authorities::{SharedAuthoritySet, AuthoritySet};
+use crate::authorities::{AuthoritySet, SharedAuthoritySet};
 
 /// Persistent data kept between runs.
 pub(crate) struct PersistentData<Block: BlockT> {
@@ -23,11 +22,10 @@ where
 	B: AuxStore,
 	G: FnOnce() -> ClientResult<AuthorityList>,
 {
-
-    let genesis_authorities = genesis_authorities()?;
+	let genesis_authorities = genesis_authorities()?;
 
 	let genesis_set = AuthoritySet::genesis(genesis_authorities)
-	.expect("genesis authorities is non-empty; all weights are non-zero; qed.");
+		.expect("genesis authorities is non-empty; all weights are non-zero; qed.");
 
-    Ok(PersistentData {authority_set: genesis_set.into()})
+	Ok(PersistentData { authority_set: genesis_set.into() })
 }

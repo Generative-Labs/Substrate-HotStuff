@@ -395,7 +395,8 @@ pub trait SimpleSlotWorker<B: BlockT> {
 		let header_hash = header.hash();
 		let parent_hash = *header.parent_hash();
 
-		// println!("🔥 >>> start propose: header_num: {} header_hash:{} parent_hash:{}", header_num, header_hash, parent_hash);
+		// println!("🔥 >>> start propose: header_num: {} header_hash:{} parent_hash:{}",
+		// header_num, header_hash, parent_hash);
 
 		let block_import_params = match self
 			.block_import_params(
@@ -542,7 +543,7 @@ pub async fn start_slot_worker<B, C, W, SO, CIDP, Proof>(
 		}
 
 		let result = worker.on_slot(slot_info).await;
-		
+
 		match result {
 			Some(slot_result) => {
 				let block = slot_result.block;
@@ -550,10 +551,10 @@ pub async fn start_slot_worker<B, C, W, SO, CIDP, Proof>(
 				println!("🔥 >>> start slot worker: Block hash: {:?}", block.hash());
 
 				// println!("Storage Proof: {:?}", slot_result.storage_proof);
-			}
+			},
 			None => {
 				println!("No block was built in this slot.");
-			}
+			},
 		}
 	}
 }
