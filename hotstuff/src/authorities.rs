@@ -4,7 +4,7 @@ use finality_grandpa::voter_set::VoterSet;
 use parity_scale_codec::{Decode, Encode};
 use parking_lot::MappedMutexGuard;
 use sc_consensus::shared_data::{SharedData, SharedDataLocked};
-use sp_consensus_grandpa::{AuthorityId, AuthorityList};
+use sp_consensus_hotstuff::{AuthorityId, AuthorityList};
 
 /// A shared authority set.
 pub struct SharedAuthoritySet<H, N> {

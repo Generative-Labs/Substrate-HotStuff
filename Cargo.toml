@@ -4,11 +4,6 @@ members = [
     "node",
     "pallets/template",
     "runtime",
-    "store", 
-    "crypto", 
-    "network", 
-    "mempool", 
-    "consensus",
     "hotstuff"
 ]
 [profile.release]
