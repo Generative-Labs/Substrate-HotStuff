@@ -1,7 +1,6 @@
 //! Service and ServiceFactory implementation. Specialized wrapper over substrate service.
 
 use futures::FutureExt;
-// use hotstuff::import::KnownPeers;
 use node_template_runtime::{self, opaque::Block, RuntimeApi};
 use sc_client_api::{Backend, BlockBackend};
 // use sc_consensus_aura::{ImportQueueParams, StartAuraParams, SlotProportion};
@@ -10,18 +9,15 @@ use sc_client_api::{Backend, BlockBackend};
 use sc_consensus_hotstuff::{ImportQueueParams, SlotProportion, StartHotstuffParams};
 
 pub use sc_executor::NativeElseWasmExecutor;
-// use sc_network_gossip::GossipEngine;
 use sc_service::{error::Error as ServiceError, Configuration, TaskManager};
 use sc_telemetry::{Telemetry, TelemetryWorker};
 use sc_transaction_pool_api::OffchainTransactionPoolFactory;
-// use sc_network::types::ProtocolName;
 
 // use sp_consensus_aura::sr25519::AuthorityPair as AuraPair;
 use sp_consensus_hotstuff::sr25519::AuthorityPair as HotstuffPair;
 
 use std::sync::Arc;
 
-use sc_consensus_grandpafork;
 use sc_consensus_hotstuff;
 
 // Our native executor instance.
@@ -60,13 +56,6 @@ pub fn new_partial(
 		sc_consensus::DefaultImportQueue<Block, FullClient>,
 		sc_transaction_pool::FullPool<Block, FullClient>,
 		(
-			// sc_consensus_grandpafork::GrandpaBlockImport<
-			// 	FullBackend,
-			// 	Block,
-			// 	FullClient,
-			// 	FullSelectChain,
-			// >,
-			// sc_consensus_grandpafork::LinkHalf<Block, FullClient, FullSelectChain>,
 			hotstuff::HotstuffBlockImport<FullBackend, Block, FullClient>,
 			hotstuff::LinkHalf<Block, FullClient, FullSelectChain>,
 			Option<Telemetry>,
@@ -160,22 +149,8 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 		transaction_pool,
 		other: (block_import, grandpa_link, mut telemetry),
 	} = new_partial(&config)?;
-	// let hotstuff_client = client.clone();
-
-	// task_manager.spawn_essential_handle().spawn_blocking(
-	// 	"hotstuff-voter-test", None,
-	// 	sc_hotstuff_finality::run_hotstuff_voter_test(client.clone())?
-	// );
 
 	let mut net_config = sc_network::config::FullNetworkConfiguration::new(&config.network);
-
-	let grandpa_protocol_name = sc_consensus_grandpafork::protocol_standard_name(
-		&client.block_hash(0).ok().flatten().expect("Genesis block exists; qed"),
-		&config.chain_spec,
-	);
-	net_config.add_notification_protocol(sc_consensus_grandpafork::grandpa_peers_set_config(
-		grandpa_protocol_name.clone(),
-	));
 
 	let hotstuff_protocol_name = hotstuff::config::standard_name(
 		&client.block_hash(0).ok().flatten().expect("Genesis block exists; qed"),
