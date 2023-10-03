@@ -147,7 +147,7 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 		keystore_container,
 		select_chain,
 		transaction_pool,
-		other: (block_import, grandpa_link, mut telemetry),
+		other: (block_import, hotstuff_link, mut telemetry),
 	} = new_partial(&config)?;
 
 	let mut net_config = sc_network::config::FullNetworkConfiguration::new(&config.network);
@@ -240,7 +240,7 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 
 		let slot_duration = sc_consensus_hotstuff::slot_duration(&*client)?;
 
-		let hotstuff =
+		let hotstuff_block_author =
 			sc_consensus_hotstuff::start_hotstuff::<HotstuffPair, _, _, _, _, _, _, _, _, _, _>(
 				StartHotstuffParams {
 					slot_duration,
@@ -274,18 +274,27 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 		// the hotstuff authoring task is considered essential, i.e. if it
 		// fails we take down the service with it.
 		task_manager.spawn_essential_handle().spawn_blocking(
-			"hotstuff",
+			"hotstuff block author",
 			Some("block-authoring"),
-			hotstuff,
+			hotstuff_block_author,
 		);
 
-		hotstuff::consensus::start_hotstuff(
+		let (voter, hotstuff_network) = hotstuff::consensus::start_hotstuff(
 			network,
-			grandpa_link,
+			hotstuff_link,
 			Arc::new(sync_service),
 			hotstuff_protocol_name,
 			keystore_container.keystore(),
-			&task_manager,
+		)?;
+
+		task_manager
+			.spawn_essential_handle()
+			.spawn_blocking("hotstuff block voter", None, voter);
+
+		task_manager.spawn_essential_handle().spawn_blocking(
+			"hotstuff network",
+			None,
+			hotstuff_network,
 		);
 	}
 

@@ -1,7 +1,7 @@
 use sc_chain_spec::ChainSpec;
 use sc_network::types::ProtocolName;
 
-pub(crate) const NAME: &str = "/hotstuff";
+pub(crate) const HOTSTUFF_PROTOCOL_NAME: &str = "/hotstuff";
 
 pub fn standard_name<Hash: AsRef<[u8]>>(
 	genesis_hash: &Hash,
@@ -12,7 +12,7 @@ pub fn standard_name<Hash: AsRef<[u8]>>(
 		Some(fork_id) => format!("/{}/{}", array_bytes::bytes2hex("", genesis_hash), fork_id),
 		None => format!("/{}", array_bytes::bytes2hex("", genesis_hash)),
 	};
-	format!("{}{}", chain_prefix, NAME).into()
+	format!("{}{}", chain_prefix, HOTSTUFF_PROTOCOL_NAME).into()
 }
 
 pub fn hotstuff_peers_set_config(

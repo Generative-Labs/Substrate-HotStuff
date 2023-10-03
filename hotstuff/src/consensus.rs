@@ -16,7 +16,6 @@ use tokio::sync::mpsc::{channel, Receiver, Sender};
 use sc_client_api::{Backend, CallExecutor};
 use sc_network::types::ProtocolName;
 use sc_network_gossip::TopicNotification;
-use sc_service::TaskManager;
 use sp_application_crypto::AppCrypto;
 use sp_consensus_hotstuff::{AuthorityId, AuthorityList, AuthoritySignature, HOTSTUFF_KEY_TYPE};
 use sp_core::{crypto::ByteArray, traits::CallContext};
@@ -34,6 +33,10 @@ use crate::{
 	primitives::{HotstuffError, HotstuffError::*, ViewNumber},
 	synchronizer::{Synchronizer, Timer},
 };
+
+#[cfg(test)]
+#[path = "tests/consensus_tests.rs"]
+pub mod consensus_tests;
 
 // the core of hotstuff
 pub struct ConsensusState<B: BlockT> {
@@ -283,7 +286,7 @@ where
 		}
 	}
 
-	pub async fn run(&mut self) {
+	pub async fn run(mut self) {
 		loop {
 			let _ = tokio::select! {
 				_ = &mut self.local_timer => self.handle_local_timer().await,
@@ -592,14 +595,15 @@ where
 {
 }
 
-pub fn start_hotstuff<B: BlockT, BE: 'static, C, N, S, SC>(
+pub fn start_hotstuff<B, BE, C, N, S, SC>(
 	network: N,
 	link: LinkHalf<B, C, SC>,
 	sync: S,
 	hotstuff_protocol_name: ProtocolName,
 	keystore: KeystorePtr,
-	task_manager: &TaskManager,
-) where
+) -> sp_blockchain::Result<(impl Future<Output = ()> + Send, impl Future<Output = ()> + Send)>
+where
+	B: BlockT,
 	BE: Backend<B> + 'static,
 	N: NetworkT<B> + Sync + 'static,
 	S: SyncingT<B> + Sync + 'static,
@@ -615,7 +619,7 @@ pub fn start_hotstuff<B: BlockT, BE: 'static, C, N, S, SC>(
 
 	let (consensus_msg_tx, consensus_msg_rx) = channel::<ConsensusMessage<B>>(1000);
 
-	let mut consensus_worker = ConsensusWorker::<B, BE, C, N, S>::new(
+	let consensus_worker = ConsensusWorker::<B, BE, C, N, S>::new(
 		consensus_state,
 		client,
 		network.clone(),
@@ -627,17 +631,7 @@ pub fn start_hotstuff<B: BlockT, BE: 'static, C, N, S, SC>(
 
 	let consensus_network = ConsensusNetwork::<B, N, S>::new(network, consensus_msg_tx);
 
-	task_manager.spawn_essential_handle().spawn_blocking(
-		"hotstuff network",
-		None,
-		consensus_network,
-	);
-
-	task_manager
-		.spawn_essential_handle()
-		.spawn_blocking("hotstuff network", None, async move {
-			consensus_worker.run().await;
-		});
+	Ok((async { consensus_worker.run().await }, consensus_network))
 }
 
 // TODO just for dev!
