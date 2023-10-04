@@ -1,6 +1,5 @@
 use std::{
 	cmp::max,
-	future::Future,
 	ops::Add,
 	pin::Pin,
 	sync::Arc,
@@ -8,7 +7,8 @@ use std::{
 };
 
 use async_recursion::async_recursion;
-use futures::StreamExt;
+use futures::{StreamExt,Future, channel::mpsc::Receiver as Recv};
+
 use log::{error, info};
 use parity_scale_codec::{Decode, Encode};
 use tokio::sync::mpsc::{channel, Receiver, Sender};
@@ -526,27 +526,22 @@ where
 	type Output = ();
 
 	fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-		let mut gossip_msg_receiver = self
-			.network
-			.gossip_engine
-			.lock()
-			.messages_for(ConsensusMessage::<B>::gossip_topic());
 		loop {
-			match StreamExt::poll_next_unpin(&mut gossip_msg_receiver, cx) {
+			match StreamExt::poll_next_unpin(&mut self.message_recv, cx) {
 				Poll::Ready(None) => break,
 				Poll::Ready(Some(notification)) => {
 					if let Err(e) = self.incoming_message_handler(notification) {
 						error!("process incoming message error: {:#?}", e)
 					}
 				},
-				Poll::Pending => {},
+				Poll::Pending => break,
 			};
-
-			match Future::poll(Pin::new(&mut self.network), cx) {
-				Poll::Ready(_) => break,
-				Poll::Pending => {},
-			}
 		}
+
+		match Future::poll(Pin::new(&mut self.network), cx) {
+			Poll::Ready(_) => {},
+			Poll::Pending => {},
+		};
 
 		Poll::Pending
 	}
@@ -558,6 +553,7 @@ pub struct ConsensusNetwork<
 	S: SyncingT<B> + Sync + 'static,
 > {
 	network: HotstuffNetworkBridge<B, N, S>,
+	message_recv : Recv<TopicNotification>,
 	consensus_msg_tx: Sender<ConsensusMessage<B>>,
 }
 
@@ -571,7 +567,11 @@ where
 		network: HotstuffNetworkBridge<B, N, S>,
 		consensus_msg_tx: Sender<ConsensusMessage<B>>,
 	) -> Self {
-		Self { network, consensus_msg_tx }
+		let message_recv =
+			 network.gossip_engine.clone().lock()
+			 .messages_for(ConsensusMessage::<B>::gossip_topic());
+
+		Self { network, consensus_msg_tx, message_recv }
 	}
 
 	pub fn incoming_message_handler(
@@ -654,4 +654,44 @@ pub fn get_genesis_authorities_from_client<
 	let authorities: Vec<AuthorityId> = Decode::decode(&mut &authorities_data[..]).expect("");
 
 	authorities.iter().map(|id| (id.clone(), 0)).collect::<AuthorityList>()
+}
+
+#[cfg(test)]
+pub fn start_hotstuff_with_authority<B, BE, C, N, S, SC>(
+	network: N,
+	link: LinkHalf<B, C, SC>,
+	sync: S,
+	hotstuff_protocol_name: ProtocolName,
+	keystore: KeystorePtr,
+	authorities: AuthorityList,
+) -> sp_blockchain::Result<(impl Future<Output = ()> + Send, impl Future<Output = ()> + Send)>
+where
+	B: BlockT,
+	BE: Backend<B> + 'static,
+	N: NetworkT<B> + Sync + 'static,
+	S: SyncingT<B> + Sync + 'static,
+	C: ClientForHotstuff<B, BE> + 'static,
+	C::Api: sp_consensus_grandpa::GrandpaApi<B>,
+{
+	let LinkHalf { client, .. } = link;
+
+	let network = HotstuffNetworkBridge::new(network.clone(), sync.clone(), hotstuff_protocol_name);
+	let synchronizer = Synchronizer::<B, BE, C>::new(client.clone());
+	let consensus_state = ConsensusState::<B>::new(keystore, authorities);
+
+	let (consensus_msg_tx, consensus_msg_rx) = channel::<ConsensusMessage<B>>(1000);
+
+	let consensus_worker = ConsensusWorker::<B, BE, C, N, S>::new(
+		consensus_state,
+		client,
+		network.clone(),
+		synchronizer,
+		1000,
+		consensus_msg_tx.clone(),
+		consensus_msg_rx,
+	);
+
+	let consensus_network = ConsensusNetwork::<B, N, S>::new(network, consensus_msg_tx);
+
+	Ok((async { consensus_worker.run().await }, consensus_network))
 }
