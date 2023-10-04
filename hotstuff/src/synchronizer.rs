@@ -93,7 +93,7 @@ where
 			proposal.parent_hash()
 		);
 
-		info!("~~ get_proposal_ancestors, parent {:#?}, grandpa {:#?}", parent, grandpa);
+		debug!("~~ get_proposal_ancestors, parent {:#?}, grandpa {:#?}", parent, grandpa);
 
 		Ok((parent, grandpa))
 	}

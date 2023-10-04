@@ -168,10 +168,6 @@ impl<B: BlockT, N: Network<B>, S: Syncing<B>> HotstuffNetworkBridge<B, N, S> {
 			None,
 		)));
 
-		//let topic = <<B::Header as HeaderT>::Hashing>::hash(b"topic name");
-		// gossip_engine.lock().register_gossip_message(topic, vec![1, 2]);
-		// println!(">>>HotstuffNetworkBridge register_gossip_message 🔥");
-
 		HotstuffNetworkBridge { service, sync, gossip_engine }
 	}
 

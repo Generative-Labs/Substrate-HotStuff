@@ -1,8 +1,9 @@
 // hotstuff worker tests
-
 use super::*;
 
-use std::sync::Mutex;
+use futures::{stream, future, FutureExt};
+use parking_lot::{Mutex, RwLock};
+use tokio::runtime::Handle;
 
 use sc_consensus::{BoxJustificationImport, LongestChain};
 use sc_network_test::{
@@ -11,6 +12,14 @@ use sc_network_test::{
 };
 use sp_api::{ApiRef, ProvideRuntimeApi};
 use sp_consensus_hotstuff::HotstuffApi;
+use sp_keyring::Sr25519Keyring;
+use sp_keystore::{testing::MemoryKeystore, Keystore, KeystorePtr};
+use sp_runtime::{
+	codec::Encode,
+	generic::{BlockId, DigestItem},
+	traits::{Block as BlockT, Header as HeaderT},
+	Justifications,
+};
 
 use crate::client::GenesisAuthoritySetProvider;
 
@@ -22,7 +31,7 @@ type HotstuffBlockImport = crate::import::HotstuffBlockImport<
 	Block,
 	PeersFullClient,
 >;
-type GrandpaPeer = Peer<PeerData, HotstuffBlockImport>;
+type HotstuffPeer = Peer<PeerData, HotstuffBlockImport>;
 
 #[derive(Default, Clone)]
 pub(crate) struct TestApi {
@@ -49,12 +58,6 @@ impl ProvideRuntimeApi<Block> for TestApi {
 
 impl GenesisAuthoritySetProvider<Block> for TestApi {
 	fn get(&self) -> sp_blockchain::Result<AuthorityList> {
-		let x = self
-			.genesis_authorities
-			.iter()
-			.map(|(id, _)| id.clone())
-			.collect::<Vec<AuthorityId>>();
-
 		Ok(self.genesis_authorities.clone())
 	}
 }
@@ -76,15 +79,14 @@ sp_api::mock_impl_runtime_apis! {
 }
 
 #[derive(Default)]
-struct GrandpaTestNet {
-	peers: Vec<GrandpaPeer>,
+struct TestNet {
+	peers: Vec<HotstuffPeer>,
 	test_config: TestApi,
 }
 
-impl GrandpaTestNet {
+impl TestNet {
 	fn new(test_config: TestApi, n_authority: usize, n_full: usize) -> Self {
-		let mut net =
-			GrandpaTestNet { peers: Vec::with_capacity(n_authority + n_full), test_config };
+		let mut net = TestNet { peers: Vec::with_capacity(n_authority + n_full), test_config };
 
 		for _ in 0..n_authority {
 			net.add_authority_peer();
@@ -98,7 +100,7 @@ impl GrandpaTestNet {
 	}
 }
 
-impl GrandpaTestNet {
+impl TestNet {
 	fn add_authority_peer(&mut self) {
 		self.add_full_peer_with_config(FullPeerConfig {
 			notifications_protocols: vec![crate::config::HOTSTUFF_PROTOCOL_NAME.into()],
@@ -108,7 +110,7 @@ impl GrandpaTestNet {
 	}
 }
 
-impl TestNetFactory for GrandpaTestNet {
+impl TestNetFactory for TestNet {
 	type Verifier = PassThroughVerifier;
 	type PeerData = PeerData;
 	type BlockImport = HotstuffBlockImport;
@@ -136,21 +138,178 @@ impl TestNetFactory for GrandpaTestNet {
 		(BlockImportAdapter::new(import), Some(justification_import), Mutex::new(Some(link)))
 	}
 
-	fn peer(&mut self, i: usize) -> &mut GrandpaPeer {
+	fn peer(&mut self, i: usize) -> &mut HotstuffPeer {
 		&mut self.peers[i]
 	}
 
-	fn peers(&self) -> &Vec<GrandpaPeer> {
+	fn peers(&self) -> &Vec<HotstuffPeer> {
 		&self.peers
 	}
 
-	fn peers_mut(&mut self) -> &mut Vec<GrandpaPeer> {
+	fn peers_mut(&mut self) -> &mut Vec<HotstuffPeer> {
 		&mut self.peers
 	}
 
-	fn mut_peers<F: FnOnce(&mut Vec<GrandpaPeer>)>(&mut self, closure: F) {
+	fn mut_peers<F: FnOnce(&mut Vec<HotstuffPeer>)>(&mut self, closure: F) {
 		closure(&mut self.peers);
 	}
 }
 
-// #[tokio::test]
+fn make_ids(keys: &[Sr25519Keyring]) -> AuthorityList {
+	keys.iter().map(|&key| key.public().into()).map(|id| (id, 1)).collect()
+}
+
+fn create_keystore(authority: Sr25519Keyring) -> KeystorePtr {
+	let keystore = MemoryKeystore::new();
+	keystore
+		.ed25519_generate_new(AuthorityId::ID, Some(&authority.to_seed()))
+		.expect("Creates authority key");
+	keystore.into()
+}
+
+fn initialize_hotstuff(net: &mut TestNet, peers: &[Sr25519Keyring]) -> impl Future<Output = ()> {
+	let voters = stream::FuturesUnordered::new();
+	let authority_list = make_ids(peers);
+	for (peer_id, key) in peers.iter().enumerate() {
+		let keystore = create_keystore(*key);
+
+		let (net_service, link) = {
+			// temporary needed for some reason
+			let link =
+				net.peers[peer_id].data.lock().take().expect("link initialized at startup; qed");
+			(net.peers[peer_id].network_service().clone(), link)
+		};
+		let sync = net.peers[peer_id].sync_service().clone();
+
+		let (v0, v1) = start_hotstuff_with_authority(
+			net_service,
+			link,
+			sync,
+			crate::config::HOTSTUFF_PROTOCOL_NAME.into(),
+			keystore,
+			authority_list.clone(),
+		)
+		.expect("");
+
+		fn assert_send<T: Send>(_: &T) {}
+		assert_send(&v0);
+		assert_send(&v1);
+
+		let v = futures::future::select(Box::pin(v0), v1);
+		voters.push(v);
+	}
+
+	voters.for_each(|_| async move {})
+}
+
+async fn run_until_complete(future: impl Future + Unpin, net: &Arc<Mutex<TestNet>>) {
+	let drive_to_completion = futures::future::poll_fn(|cx| {
+		net.lock().poll(cx);
+		Poll::<()>::Pending
+	});
+	future::select(future, drive_to_completion).await;
+}
+
+// run the voters to completion. provide a closure to be invoked after
+// the voters are spawned but before blocking on them.
+async fn run_to_completion_with<F>(
+	blocks: u64,
+	net: Arc<Mutex<TestNet>>,
+	peers: &[Sr25519Keyring],
+	with: F,
+) -> u64
+where
+	F: FnOnce(Handle) -> Option<Pin<Box<dyn Future<Output = ()>>>>,
+{
+	let mut wait_for = Vec::new();
+
+	let highest_finalized = Arc::new(RwLock::new(0));
+
+	if let Some(f) = (with)(Handle::current()) {
+		wait_for.push(f);
+	};
+
+	for (peer_id, _) in peers.iter().enumerate() {
+		let highest_finalized = highest_finalized.clone();
+		let client = net.lock().peers[peer_id].client().clone();
+
+		wait_for.push(Box::pin(
+			client
+				.finality_notification_stream()
+				.take_while(move |n| {
+					let mut highest_finalized = highest_finalized.write();
+					if *n.header.number() > *highest_finalized {
+						*highest_finalized = *n.header.number();
+					}
+					future::ready(n.header.number() < &blocks)
+				})
+				.collect::<Vec<_>>()
+				.map(|_| ()),
+		));
+	}
+
+	// wait for all finalized on each.
+	let wait_for = ::futures::future::join_all(wait_for);
+
+	run_until_complete(wait_for, &net).await;
+	let highest_finalized = *highest_finalized.read();
+	highest_finalized
+}
+
+async fn run_to_completion(
+	blocks: u64,
+	net: Arc<Mutex<TestNet>>,
+	peers: &[Sr25519Keyring],
+) -> u64 {
+	run_to_completion_with(blocks, net, peers, |_| None).await
+}
+
+// Test when there are three honest nodes, they can achieve consensus on block finalization
+#[tokio::test]
+async fn three_honest_voters_finalize_should_work() {
+	let peers = &[Sr25519Keyring::Alice, Sr25519Keyring::Bob, Sr25519Keyring::Charlie];
+	let voters = make_ids(peers);
+
+	let mut net = TestNet::new(TestApi::new(voters), 3, 0);
+	tokio::spawn(initialize_hotstuff(&mut net, peers));
+
+	net.peer(2).push_blocks(100, false);
+	//net.run_until_sync().await;
+	
+	// let mut net = sc_network_test::TestNet::new(3);
+	// net.peer(2).push_blocks(100, false);
+
+	futures::future::poll_fn::<(), _>(|cx| {
+		net.poll(cx);
+		for peer in 0..3 {
+			// Online
+			if net.peer(peer).is_offline() {
+				return Poll::Pending
+			}
+			if peer < 2 {
+				// Major syncing.
+				if net.peer(peer).blocks_count() < 100 && !net.peer(peer).is_major_syncing() {
+					return Poll::Pending
+				}
+			}
+		}
+		Poll::Ready(())
+	})
+	.await;
+
+	futures::future::poll_fn::<(), _>(|cx| {
+		net.poll(cx);
+		for peer in 0..3 {
+			if net.peer(peer).is_major_syncing() {
+				return Poll::Pending
+			}
+		}
+		Poll::Ready(())
+	})
+	.await;
+
+	let hashof20 = net.peer(0).client().info().best_hash;
+	
+	log::info!("{}", hashof20);
+
+}

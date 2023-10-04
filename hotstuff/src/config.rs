@@ -1,7 +1,7 @@
 use sc_chain_spec::ChainSpec;
 use sc_network::types::ProtocolName;
 
-pub(crate) const HOTSTUFF_PROTOCOL_NAME: &str = "/hotstuff";
+pub(crate) const HOTSTUFF_PROTOCOL_NAME: &str = "/hotstuff/1";
 
 pub fn standard_name<Hash: AsRef<[u8]>>(
 	genesis_hash: &Hash,
