@@ -683,7 +683,7 @@ where
 		client,
 		network.clone(),
 		synchronizer,
-		1000,
+		3000,
 		consensus_msg_tx.clone(),
 		consensus_msg_rx,
 		import_block_rx,
