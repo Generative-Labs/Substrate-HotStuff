@@ -52,7 +52,7 @@ impl<Block: BlockT> QC<Block> {
 			grant_votes += 1;
 		}
 
-		if grant_votes < 4 || grant_votes <= (authorities.len() * 2 / 3) {
+		if grant_votes < (authorities.len() * 2 / 3) {
 			return Err(QCRequiresQuorum)
 		}
 
@@ -60,7 +60,6 @@ impl<Block: BlockT> QC<Block> {
 		// TODO parallel verify signature ?
 		for (voter, signature) in self.votes.iter() {
 			if !AuthorityPair::verify(signature, digest, voter) {
-				info!("~~ qc has invalid signature");
 				return Err(InvalidSignature(voter.clone()))
 			}
 		}
@@ -128,9 +127,9 @@ impl<Block: BlockT> Proposal<Block> {
 				Ok(())
 			})?;
 
-		// if self.qc != QC::<Block>::default() {
-		// 	self.qc.verify(authorities)?;
-		// }
+		if self.qc != QC::<Block>::default() {
+			self.qc.verify(authorities)?;
+		}
 
 		Ok(())
 	}
@@ -146,10 +145,12 @@ pub struct Vote<Block: BlockT> {
 }
 
 impl<Block: BlockT> Vote<Block> {
-	pub fn digest(&self) -> Block::Hash {
-		let mut data = self.hash.encode();
-		data.append(&mut self.view.encode());
+	pub fn new(proposal_hash: Block::Hash, proposal_view: ViewNumber, voter: AuthorityId) -> Self {
+		Self { hash: proposal_hash, view: proposal_view, voter, signature: None }
+	}
 
+	pub fn digest(&self) -> Block::Hash {
+		let data = self.hash.encode().append(&mut self.view.encode());
 		<<Block::Header as HeaderT>::Hashing as HashT>::hash_of(&data)
 	}
 
@@ -207,10 +208,9 @@ impl<Block: BlockT> Timeout<Block> {
 			})?;
 
 		// Every hotstuff start, it's high qc is null.
-		// if self.high_qc != QC::<Block>::default() {
-		// 	info!(target: "Hotstuff","~~ Timeout try verify it's high qc {:#?}", self.high_qc);
-		// 	self.high_qc.verify(&authorities)?;
-		// }
+		if self.high_qc != QC::<Block>::default() {
+			self.high_qc.verify(&authorities)?;
+		}
 		Ok(())
 	}
 }
@@ -235,7 +235,7 @@ impl<Block: BlockT> TC<Block> {
 			grant_votes += 1;
 		}
 
-		if grant_votes < 4 || grant_votes <= (authorities.len() * 2 / 3) {
+		if grant_votes <= (authorities.len() * 2 / 3) {
 			return Err(QCRequiresQuorum)
 		}
 

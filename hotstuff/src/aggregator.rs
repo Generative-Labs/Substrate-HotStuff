@@ -60,15 +60,15 @@ impl QCMaker {
 		authorities: &AuthorityList,
 	) -> Result<Option<QC<B>>, HotstuffError> {
 		// TODO check voter weather in authorities?
-		let voter = vote.voter;
-		if self.votes.iter().any(|(id, _)| id.eq(&voter)) {
-			return Err(AuthorityReuse(voter.to_owned()))
+		if self.votes.iter().any(|(id, _)| id.eq(&vote.voter)) {
+			return Err(AuthorityReuse(vote.voter.to_owned()))
 		}
 
-		self.votes.push((voter, vote.signature.ok_or(HotstuffError::NullSignature)?));
+		self.votes
+			.push((vote.voter, vote.signature.ok_or(HotstuffError::NullSignature)?));
 		self.weight += 1;
 
-		if self.weight < 4 || self.weight < (authorities.len() * 2 / 3 + 1) as u64 {
+		if self.weight < (authorities.len() * 2 / 3 + 1) as u64 {
 			return Ok(None)
 		}
 
@@ -100,11 +100,11 @@ impl TCMaker {
 		self.votes.push((voter, timeout.signature.ok_or(NullSignature)?, timeout.view));
 		self.weight += 1;
 
-		//info!(target: "Hotstuff","~~ tc weights {}", self.weight);
-		if self.weight < 4 || self.weight < (authorities.len() * 2 / 3 + 1) as u64 {
+		if self.weight < (authorities.len() * 2 / 3 + 1) as u64 {
 			return Ok(None)
 		}
 
+		// log::info!(target: "Hotstuff Aggregator","Valid TC weight {}", self.weight);
 		Ok(Some(TC::<B> {
 			view: timeout.view,
 			votes: self.votes.clone(),

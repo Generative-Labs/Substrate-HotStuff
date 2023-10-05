@@ -7,22 +7,18 @@ edition = "2021"
 
 [dependencies]
 log = "0.4.0"
-rand = "0.8"
 array-bytes = "6.1"
 parking_lot = "0.12.1"
 async-trait = "0.1.57"
 parity-scale-codec = { version = "3.6.1", features = ["derive"] }
-
+async-recursion = "1.0.0"
 futures = "0.3.21"
-futures-timer = "3.0.1"
 tokio = { version = "1.22.0", features = ["rt", "time", "macros", "sync"] }
-# codec = { default-features = false }
+
 serde = { version = "1.0", features = ["derive"] }
 sc-basic-authorship = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 sc-utils = { version = "4.0.0-dev",  git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
-finality-grandpa = { version = "0.16.2", features = ["derive-codec"] }
-async-recursion = "1.0.0"
-
+finality-grandpa = { version = "0.16.2",features = ["derive-codec"] }
 sp-consensus = { version = "0.10.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 sp-api = { version = "4.0.0-dev",  git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 sp-runtime = { version = "24.0.0",  git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
@@ -50,8 +46,11 @@ ed25519-dalek = { version = "1.0.1", features = ["batch"] }
 
 [dev-dependencies]
 parking_lot = "0.12.1"
+tempfile = "3.8.0"
+
 sc-keystore = { version = "4.0.0-dev",  git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 sc-transaction-pool = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
-substrate-test-runtime-client = { version = "2.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 sc-network-test = { version = "0.8.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
-tempfile = "3.8.0"
+sp-tracing = { version = "10.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
+substrate-test-runtime-client = { version = "2.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
+

@@ -1,11 +1,13 @@
 use std::{marker::PhantomData, sync::Arc};
 
 use parity_scale_codec::Decode;
+
 use sc_client_api::{
 	AuxStore, Backend, BlockchainEvents, CallExecutor, ExecutorProvider, Finalizer, LockImportRun,
 	StorageProvider, TransactionFor,
 };
 use sc_consensus::BlockImport;
+use sc_utils::mpsc::{tracing_unbounded, TracingUnboundedReceiver};
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::{Error as ClientError, HeaderBackend, HeaderMetadata};
 use sp_consensus_hotstuff::AuthorityList;
@@ -70,32 +72,12 @@ pub(crate) trait BlockSyncRequester<Block: BlockT> {
 	);
 }
 
-// impl<Block, Network, Syncing> BlockSyncRequester<Block> for HotstuffNetworkBridge<Block, Network,
-// Syncing> where
-// 	Block: BlockT,
-// 	Network: NetworkT<Block>,
-// 	Syncing: SyncingT<Block>,
-// {
-// 	fn set_sync_fork_request(
-// 		&self,
-// 		peers: Vec<sc_network::PeerId>,
-// 		hash: Block::Hash,
-// 		number: NumberFor<Block>,
-// 	) {
-// 		HotstuffNetworkBridge::set_sync_fork_request(self, peers, hash, number)
-// 	}
-// }
-
-/// Persistent data kept between runs.
-// pub(crate) struct PersistentData<Block: BlockT> {
-//     _phantom: Option<PhantomData<Block>>,
-// }
-
 /// Link between the block importer and the background voter.
 pub struct LinkHalf<Block: BlockT, C, SC> {
 	pub client: Arc<C>,
 	pub select_chain: Option<PhantomData<SC>>,
 	pub(crate) persistent_data: aux_schema::PersistentData<Block>,
+	pub import_block_rx: TracingUnboundedReceiver<(Block::Hash, NumberFor<Block>)>,
 	// voter_commands_rx: TracingUnboundedReceiver<VoterCommand<Block::Hash, NumberFor<Block>>>,
 	// justification_sender: GrandpaJustificationSender<Block>,
 	// justification_stream: GrandpaJustificationStream<Block>,
@@ -172,8 +154,11 @@ where
 		},
 	)?;
 
+	let (import_block_tx, import_block_rx) =
+		tracing_unbounded::<(Block::Hash, NumberFor<Block>)>("hotstuff_block_import_ch", 200);
+
 	Ok((
-		HotstuffBlockImport::new(client.clone()),
-		LinkHalf { client, select_chain: None, persistent_data },
+		HotstuffBlockImport::new(client.clone(), import_block_tx),
+		LinkHalf { client, select_chain: None, persistent_data, import_block_rx },
 	))
 }
