@@ -1,35 +1,29 @@
+use std::{marker::PhantomData, sync::Arc};
+
 use sc_client_api::Backend;
+use sc_consensus::{
+	BlockCheckParams, BlockImport, BlockImportParams, ImportResult, JustificationImport,
+};
+use sc_network::{PeerId, ReputationChange};
+use sc_utils::mpsc::TracingUnboundedSender;
+use sp_api::TransactionFor;
+use sp_blockchain::BlockStatus;
+use sp_consensus::Error as ConsensusError;
+use sp_consensus_grandpa::GrandpaApi;
 use sp_runtime::{
 	traits::{Block as BlockT, Header as HeaderT, NumberFor},
 	Justification,
 };
-use std::sync::Arc;
-
-use sc_network::{PeerId, ReputationChange};
-use sp_api::TransactionFor;
-use sp_blockchain::BlockStatus;
-use std::marker::PhantomData;
-
-use sp_consensus_grandpa::GrandpaApi;
-
-use sc_consensus::{
-	BlockCheckParams, BlockImport, BlockImportParams, ImportResult, JustificationImport,
-};
-use sp_consensus::Error as ConsensusError;
 
 use crate::client::ClientForHotstuff;
 
-// const LOG_TARGET: &str  = "hotstuff";
+// TODO remove finalize_grandpa reference.
 
-/// A block-import handler for Hotstuff.
-///
-/// This scans each imported block for Hotstuff justifications and verifies them.
-/// Wraps a `inner: BlockImport` and ultimately defers to it.
-///
-/// When using Hotstuff, the block import worker should be using this block import object.
+// const LOG_TARGET: &str  = "hotstuff";
 pub struct HotstuffBlockImport<Backend, Block: BlockT, Client> {
-	backend: PhantomData<Backend>,
 	inner: Arc<Client>,
+	block_import_sender: TracingUnboundedSender<(Block::Hash, NumberFor<Block>)>,
+	backend: PhantomData<Backend>,
 	_phantom: PhantomData<Block>,
 }
 
@@ -37,6 +31,7 @@ impl<Backend, Block: BlockT, Client> Clone for HotstuffBlockImport<Backend, Bloc
 	fn clone(&self) -> Self {
 		HotstuffBlockImport {
 			inner: self.inner.clone(),
+			block_import_sender: self.block_import_sender.clone(),
 			backend: PhantomData,
 			_phantom: PhantomData,
 		}
@@ -44,8 +39,16 @@ impl<Backend, Block: BlockT, Client> Clone for HotstuffBlockImport<Backend, Bloc
 }
 
 impl<Backend, Block: BlockT, Client> HotstuffBlockImport<Backend, Block, Client> {
-	pub fn new(inner: Arc<Client>) -> HotstuffBlockImport<Backend, Block, Client> {
-		HotstuffBlockImport { inner, backend: PhantomData, _phantom: PhantomData }
+	pub fn new(
+		inner: Arc<Client>,
+		block_import_sender: TracingUnboundedSender<(Block::Hash, NumberFor<Block>)>,
+	) -> HotstuffBlockImport<Backend, Block, Client> {
+		HotstuffBlockImport {
+			inner,
+			block_import_sender,
+			backend: PhantomData,
+			_phantom: PhantomData,
+		}
 	}
 }
 
@@ -87,13 +90,13 @@ where
 			Ok(BlockStatus::Unknown) => {},
 			Err(e) => return Err(ConsensusError::ClientImport(e.to_string())),
 		}
+
 		// if block.with_state() {
 		// 	return self.import_state(block).await
 		// }
 
 		let import_result = (&*self.inner).import_block(block).await;
-
-		let mut _imported_aux = {
+		let imported_aux = {
 			match import_result {
 				Ok(ImportResult::Imported(aux)) => aux,
 				Ok(r) => return Ok(r),
@@ -101,8 +104,15 @@ where
 			}
 		};
 
+		if imported_aux.is_new_best {
+			match self.block_import_sender.unbounded_send((hash, number)) {
+				Ok(_) => {},
+				Err(e) => return Err(ConsensusError::ClientImport(e.to_string())),
+			}
+		}
+
 		// TODO
-		Ok(ImportResult::Imported(_imported_aux))
+		Ok(ImportResult::Imported(imported_aux))
 	}
 }
 

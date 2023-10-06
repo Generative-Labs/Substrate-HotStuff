@@ -1,7 +1,6 @@
 //! Service and ServiceFactory implementation. Specialized wrapper over substrate service.
 
 use futures::FutureExt;
-// use hotstuff::import::KnownPeers;
 use node_template_runtime::{self, opaque::Block, RuntimeApi};
 use sc_client_api::{Backend, BlockBackend};
 // use sc_consensus_aura::{ImportQueueParams, StartAuraParams, SlotProportion};
@@ -10,18 +9,15 @@ use sc_client_api::{Backend, BlockBackend};
 use sc_consensus_hotstuff::{ImportQueueParams, SlotProportion, StartHotstuffParams};
 
 pub use sc_executor::NativeElseWasmExecutor;
-// use sc_network_gossip::GossipEngine;
 use sc_service::{error::Error as ServiceError, Configuration, TaskManager};
 use sc_telemetry::{Telemetry, TelemetryWorker};
 use sc_transaction_pool_api::OffchainTransactionPoolFactory;
-// use sc_network::types::ProtocolName;
 
 // use sp_consensus_aura::sr25519::AuthorityPair as AuraPair;
 use sp_consensus_hotstuff::sr25519::AuthorityPair as HotstuffPair;
 
 use std::sync::Arc;
 
-use sc_consensus_grandpafork;
 use sc_consensus_hotstuff;
 
 // Our native executor instance.
@@ -60,13 +56,6 @@ pub fn new_partial(
 		sc_consensus::DefaultImportQueue<Block, FullClient>,
 		sc_transaction_pool::FullPool<Block, FullClient>,
 		(
-			// sc_consensus_grandpafork::GrandpaBlockImport<
-			// 	FullBackend,
-			// 	Block,
-			// 	FullClient,
-			// 	FullSelectChain,
-			// >,
-			// sc_consensus_grandpafork::LinkHalf<Block, FullClient, FullSelectChain>,
 			hotstuff::HotstuffBlockImport<FullBackend, Block, FullClient>,
 			hotstuff::LinkHalf<Block, FullClient, FullSelectChain>,
 			Option<Telemetry>,
@@ -109,21 +98,14 @@ pub fn new_partial(
 		client.clone(),
 	);
 
-	// let (grandpa_block_import, grandpa_link) = sc_consensus_grandpafork::block_import(
-	// 	client.clone(),
-	// 	&client,
-	// 	select_chain.clone(),
-	// 	telemetry.as_ref().map(|x| x.handle()),
-	// )?;
-
-	let (grandpa_block_import, grandpa_link) = hotstuff::block_import(client.clone(), &client)?;
+	let (hotstuff_block_import, grandpa_link) = hotstuff::block_import(client.clone(), &client)?;
 
 	let slot_duration = sc_consensus_hotstuff::slot_duration(&*client)?;
 
 	let import_queue =
 		sc_consensus_hotstuff::import_queue::<HotstuffPair, _, _, _, _, _>(ImportQueueParams {
-			block_import: grandpa_block_import.clone(),
-			justification_import: Some(Box::new(grandpa_block_import.clone())),
+			block_import: hotstuff_block_import.clone(),
+			justification_import: Some(Box::new(hotstuff_block_import.clone())),
 			client: client.clone(),
 			create_inherent_data_providers: move |_, ()| async move {
 				let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
@@ -151,7 +133,7 @@ pub fn new_partial(
 		keystore_container,
 		select_chain,
 		transaction_pool,
-		other: (grandpa_block_import, grandpa_link, telemetry),
+		other: (hotstuff_block_import, grandpa_link, telemetry),
 	})
 }
 
@@ -165,24 +147,10 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 		keystore_container,
 		select_chain,
 		transaction_pool,
-		other: (block_import, grandpa_link, mut telemetry),
+		other: (block_import, hotstuff_link, mut telemetry),
 	} = new_partial(&config)?;
-	// let hotstuff_client = client.clone();
-
-	// task_manager.spawn_essential_handle().spawn_blocking(
-	// 	"hotstuff-voter-test", None,
-	// 	sc_hotstuff_finality::run_hotstuff_voter_test(client.clone())?
-	// );
 
 	let mut net_config = sc_network::config::FullNetworkConfiguration::new(&config.network);
-
-	let grandpa_protocol_name = sc_consensus_grandpafork::protocol_standard_name(
-		&client.block_hash(0).ok().flatten().expect("Genesis block exists; qed"),
-		&config.chain_spec,
-	);
-	net_config.add_notification_protocol(sc_consensus_grandpafork::grandpa_peers_set_config(
-		grandpa_protocol_name.clone(),
-	));
 
 	let hotstuff_protocol_name = hotstuff::config::standard_name(
 		&client.block_hash(0).ok().flatten().expect("Genesis block exists; qed"),
@@ -272,7 +240,7 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 
 		let slot_duration = sc_consensus_hotstuff::slot_duration(&*client)?;
 
-		let hotstuff =
+		let hotstuff_block_author =
 			sc_consensus_hotstuff::start_hotstuff::<HotstuffPair, _, _, _, _, _, _, _, _, _, _>(
 				StartHotstuffParams {
 					slot_duration,
@@ -306,18 +274,27 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 		// the hotstuff authoring task is considered essential, i.e. if it
 		// fails we take down the service with it.
 		task_manager.spawn_essential_handle().spawn_blocking(
-			"hotstuff",
+			"hotstuff block author",
 			Some("block-authoring"),
-			hotstuff,
+			hotstuff_block_author,
 		);
 
-		hotstuff::consensus::start_hotstuff(
+		let (voter, hotstuff_network) = hotstuff::consensus::start_hotstuff(
 			network,
-			grandpa_link,
+			hotstuff_link,
 			Arc::new(sync_service),
 			hotstuff_protocol_name,
 			keystore_container.keystore(),
-			&task_manager,
+		)?;
+
+		task_manager
+			.spawn_essential_handle()
+			.spawn_blocking("hotstuff block voter", None, voter);
+
+		task_manager.spawn_essential_handle().spawn_blocking(
+			"hotstuff network",
+			None,
+			hotstuff_network,
 		);
 	}
 
