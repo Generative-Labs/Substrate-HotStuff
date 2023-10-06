@@ -85,8 +85,6 @@ impl<B: BlockT> ConsensusState<B> {
 			signature: None,
 		};
 
-		// info!(target: "Hotstuff","authority {} make_timeout", authority_id);
-
 		tc.signature = self
 			.keystore
 			.sign_with(
@@ -203,12 +201,6 @@ impl<B: BlockT> ConsensusState<B> {
 		if qc.view > self.high_qc.view {
 			self.high_qc = qc.clone()
 		}
-	}
-
-	pub fn advance_view(&mut self) -> bool {
-		self.view += 1;
-
-		return true
 	}
 
 	pub fn advance_view_from_target(&mut self, view: ViewNumber) {
@@ -404,7 +396,7 @@ where
 		self.handle_qc(&proposal.qc);
 		proposal.tc.as_ref().map(|tc| {
 			if tc.view > self.state.view() {
-				self.state.advance_view();
+				self.state.advance_view_from_target(tc.view);
 				self.local_timer.reset();
 			}
 		});
@@ -472,7 +464,6 @@ where
 
 		if let Some(qc) = self.state.add_vote(vote)? {
 			info!(target: "Hotstuff","~~ get enough vote, QC view:{:#?}, hash:{:#?}, self.view {}", qc.view, qc.hash, self.state.view());
-			// info!("!!! {:#?} {} {:#?} {} |vote digest {}, qc.digest {} ", vote.hash, vote.view, qc.hash, qc.view, vote.digest(), qc.digest());
 			self.handle_qc(&qc);
 
 			info!(target: "Hotstuff","~~ get enough vote, after handle qc, self view {}", self.state.view());
@@ -514,7 +505,7 @@ where
 		info!(target: "Hotstuff","handle tc from network, self.view {}, {:#?}",self.state.view(), tc.view);
 		self.state.verify_tc(tc)?;
 
-		self.state.advance_view();
+		self.state.advance_view_from_target(tc.view);
 		self.local_timer.reset();
 
 		if self.state.is_leader() {

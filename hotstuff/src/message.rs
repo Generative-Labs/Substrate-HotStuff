@@ -27,7 +27,9 @@ impl<B: BlockT> Default for QC<B> {
 
 impl<Block: BlockT> QC<Block> {
 	pub fn digest(&self) -> Block::Hash {
-		let data = self.hash.encode().append(&mut self.view.encode());
+		let mut data = self.hash.encode();
+		data.append(&mut self.view.encode());
+		
 		<<Block::Header as HeaderT>::Hashing as HashT>::hash_of(&data)
 	}
 
@@ -150,7 +152,9 @@ impl<Block: BlockT> Vote<Block> {
 	}
 
 	pub fn digest(&self) -> Block::Hash {
-		let data = self.hash.encode().append(&mut self.view.encode());
+		let mut data = self.hash.encode();
+		data.append(&mut self.view.encode());
+
 		<<Block::Header as HeaderT>::Hashing as HashT>::hash_of(&data)
 	}
 
@@ -360,4 +364,47 @@ mod tests {
 
 	#[test]
 	fn test_qc_verify_with_repeated_votes_should_not_work() {}
+
+	#[test]
+	fn qc_from_votes_should_work(){
+		let keystore_path = tempfile::tempdir().expect("Creates keystore path");
+		let keystore: KeystorePtr = LocalKeystore::open(keystore_path.path(), None)
+			.expect("Creates keystore")
+			.into();
+
+		let authorities = generate_sr25519_authorities(3, &keystore);
+		let mut wight_authorities = AuthorityList::new();
+
+		let test_block =
+			TestBlock { header: TestHeader::new_from_number(3), extrinsics: Vec::new() };
+
+		let view_number = 1;
+
+		let proposal = Proposal::<TestBlock>{
+    		qc: Default::default(),
+    		tc: None,
+    		payload: test_block.hash(),
+    		view: view_number,
+    		author: authorities[0].clone(),
+    		signature: None,
+		};
+
+		let proposal_digest = proposal.digest();
+
+		let vote = Vote::<TestBlock>{
+    		hash: proposal_digest,
+    		view: view_number,
+    		voter: authorities[0].clone(),
+    		signature: None,
+		};
+
+		let qc = QC::<TestBlock>{
+    		hash: proposal_digest,
+    		view: view_number,
+    		votes: Vec::new(),
+		};
+
+		assert_eq!(vote.digest(), qc.digest());
+
+	}
 }

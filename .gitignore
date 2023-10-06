@@ -20,3 +20,5 @@ tmp/
 .vscode/
 
 *.sh
+
+logs
