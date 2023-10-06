@@ -457,13 +457,13 @@ where
 			vote.view,
 			self.state.view(),
 			vote.voter,
-			vote.hash,
+			vote.proposal_hash,
 		);
 
 		self.state.verify_vote(vote)?;
 
 		if let Some(qc) = self.state.add_vote(vote)? {
-			info!(target: "Hotstuff","~~ get enough vote, QC view:{:#?}, hash:{:#?}, self.view {}", qc.view, qc.hash, self.state.view());
+			info!(target: "Hotstuff","~~ get enough vote, QC view:{:#?}, hash:{:#?}, self.view {}", qc.view, qc.proposal_hash, self.state.view());
 			self.handle_qc(&qc);
 
 			info!(target: "Hotstuff","~~ get enough vote, after handle qc, self view {}", self.state.view());

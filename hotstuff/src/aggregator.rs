@@ -72,7 +72,11 @@ impl QCMaker {
 			return Ok(None)
 		}
 
-		Ok(Some(QC::<B> { hash: vote.hash, view: vote.view, votes: self.votes.clone() }))
+		Ok(Some(QC::<B> {
+			proposal_hash: vote.proposal_hash,
+			view: vote.view,
+			votes: self.votes.clone(),
+		}))
 	}
 }
 
