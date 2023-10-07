@@ -10,7 +10,7 @@ pub enum HotstuffError {
 	AuthorityReuse(AuthorityId),
 
 	// The QC without a quorum
-	QCRequiresQuorum,
+	InsufficientQuorum,
 
 	// Get invalid signature from a authority.
 	InvalidSignature(AuthorityId),

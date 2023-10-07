@@ -71,6 +71,29 @@ fn generate_vote_with_proposal(
 	vote
 }
 
+fn generate_timeout(
+	keystore: KeystorePtr,
+	signer: &AuthorityId,
+	view: ViewNumber,
+) -> Timeout<TestBlock> {
+	let mut timeout = Timeout::<TestBlock> {
+		high_qc: QC::<TestBlock>::default(),
+		view,
+		voter: signer.clone(),
+		signature: None,
+	};
+
+	timeout.signature = Some(
+		keystore
+			.sr25519_sign(HOTSTUFF_KEY_TYPE, signer.as_ref(), timeout.digest().as_bytes())
+			.unwrap()
+			.unwrap()
+			.into(),
+	);
+
+	timeout
+}
+
 struct TestEnv {
 	keystore: KeystorePtr,
 	pks: Vec<AuthorityId>,
@@ -111,7 +134,7 @@ fn test_proposal_verify() {
 
 	let cases = [
 		TestCase {
-			describe: "Null signature".to_string(),
+			describe: "Case: Null signature".to_string(),
 			proposal: Proposal::<TestBlock>::new(
 				QC::<TestBlock>::default(),
 				None,
@@ -123,7 +146,7 @@ fn test_proposal_verify() {
 			result: Err(NullSignature),
 		},
 		TestCase {
-			describe: "Invalid signature".to_string(),
+			describe: "Case: Invalid signature".to_string(),
 			proposal: Proposal::<TestBlock>::new(
 				QC::<TestBlock>::default(),
 				None,
@@ -141,7 +164,7 @@ fn test_proposal_verify() {
 			result: Err(InvalidSignature(authorities[1].clone())),
 		},
 		TestCase {
-			describe: "Proposer not a authority".to_string(),
+			describe: "Case: Proposer not a authority".to_string(),
 			proposal: Proposal::<TestBlock>::new(
 				QC::<TestBlock>::default(),
 				None,
@@ -153,7 +176,7 @@ fn test_proposal_verify() {
 			result: Err(UnknownAuthority(pks[3].clone())),
 		},
 		TestCase {
-			describe: "Normal Proposal".to_string(),
+			describe: "Case: Normal Proposal".to_string(),
 			proposal: generate_proposal_with_block(
 				keystore.clone(),
 				&authorities[1],
@@ -192,12 +215,12 @@ fn test_vote_verify() {
 
 	let cases = [
 		TestCase {
-			describe: "Normal vote".to_string(),
+			describe: "Case: Normal vote".to_string(),
 			vote: generate_vote_with_proposal(keystore.clone(), &authorities[0], &proposal, view),
 			result: Ok(()),
 		},
 		TestCase {
-			describe: "Null signature".to_string(),
+			describe: "Case: Null signature".to_string(),
 			vote: || -> Vote<TestBlock> {
 				let mut vote =
 					generate_vote_with_proposal(keystore.clone(), &authorities[0], &proposal, view);
@@ -209,14 +232,14 @@ fn test_vote_verify() {
 			result: Err(NullSignature),
 		},
 		TestCase {
-			describe: "Invalid signature".to_string(),
+			describe: "Case: Invalid signature".to_string(),
 			vote: || -> Vote<TestBlock> {
 				let mut vote =
 					generate_vote_with_proposal(keystore.clone(), &authorities[0], &proposal, view);
 				// discard signature
 				vote.signature = Some(
 					keystore
-						.sr25519_sign(HOTSTUFF_KEY_TYPE, authorities[1].as_ref(), b"bad data")
+						.sr25519_sign(HOTSTUFF_KEY_TYPE, authorities[0].as_ref(), b"bad data")
 						.unwrap()
 						.unwrap()
 						.into(),
@@ -224,10 +247,10 @@ fn test_vote_verify() {
 
 				vote
 			}(),
-			result: Err(NullSignature),
+			result: Err(InvalidSignature(authorities[0].clone())),
 		},
 		TestCase {
-			describe: "Voter is not authority".to_string(),
+			describe: "Case: Voter is not authority".to_string(),
 			vote: || -> Vote<TestBlock> {
 				let mut vote =
 					generate_vote_with_proposal(keystore.clone(), &authorities[0], &proposal, view);
@@ -268,7 +291,7 @@ fn test_qc_verify() {
 
 	let cases = [
 		TestCase {
-			describe: "With sufficient quorum".to_string(),
+			describe: "Case: With sufficient quorum".to_string(),
 			qc: QC::<TestBlock> {
 				proposal_hash: proposal.digest(),
 				view,
@@ -289,7 +312,7 @@ fn test_qc_verify() {
 			result: Ok(()),
 		},
 		TestCase {
-			describe: "With insufficient quorum".to_string(),
+			describe: "Case: With insufficient quorum".to_string(),
 			qc: QC::<TestBlock> {
 				proposal_hash: proposal.digest(),
 				view,
@@ -313,10 +336,10 @@ fn test_qc_verify() {
 					votes
 				}(),
 			},
-			result: Err(QCRequiresQuorum),
+			result: Err(InsufficientQuorum),
 		},
 		TestCase {
-			describe: "Reuse signature quorum".to_string(),
+			describe: "Case: Reuse signature quorum".to_string(),
 			qc: QC::<TestBlock> {
 				proposal_hash: proposal.digest(),
 				view,
@@ -345,7 +368,7 @@ fn test_qc_verify() {
 			result: Err(AuthorityReuse(authorities[0].clone())),
 		},
 		TestCase {
-			describe: "Invalid signature".to_string(),
+			describe: "Case: Invalid signature".to_string(),
 			qc: QC::<TestBlock> {
 				proposal_hash: proposal.digest(),
 				view,
@@ -386,6 +409,159 @@ fn test_qc_verify() {
 			case.qc.verify(&weighted_authorities),
 			case.result,
 			"qc verify failed. {} ",
+			case.describe
+		)
+	}
+}
+
+#[test]
+fn test_timeout_verify() {
+	let TestEnv { keystore, weighted_authorities, view, pks, .. } = create_test_env();
+
+	let authorities =
+		weighted_authorities.iter().map(|a| a.0.clone()).collect::<Vec<AuthorityId>>();
+
+	struct TestCase {
+		describe: String,
+		timeout: Timeout<TestBlock>,
+		result: Result<(), HotstuffError>,
+	}
+
+	let cases = [
+		TestCase {
+			describe: "Case: Normal timeout".to_string(),
+			timeout: generate_timeout(keystore.clone(), &authorities[0], view),
+			result: Ok(()),
+		},
+		TestCase {
+			describe: "Case: Null signature".to_string(),
+			timeout: || -> Timeout<TestBlock> {
+				let mut timeout = generate_timeout(keystore.clone(), &authorities[0], view);
+				timeout.signature = None;
+				timeout
+			}(),
+			result: Err(NullSignature),
+		},
+		TestCase {
+			describe: "Case: Unknown author".to_string(),
+			timeout: || -> Timeout<TestBlock> {
+				let mut timeout = generate_timeout(keystore.clone(), &authorities[0], view);
+				timeout.voter = pks[3].clone();
+				timeout
+			}(),
+			result: Err(UnknownAuthority(pks[3].clone())),
+		},
+	];
+
+	for case in cases {
+		assert_eq!(
+			case.timeout.verify(&weighted_authorities),
+			case.result,
+			"timeout verify failed. {} ",
+			case.describe
+		)
+	}
+}
+
+#[test]
+fn test_tc_verify() {
+	let TestEnv { keystore, weighted_authorities, view, .. } = create_test_env();
+
+	let authorities =
+		weighted_authorities.iter().map(|a| a.0.clone()).collect::<Vec<AuthorityId>>();
+
+	struct TestCase {
+		describe: String,
+		tc: TC<TestBlock>,
+		result: Result<(), HotstuffError>,
+	}
+
+	let cases = [
+		TestCase {
+			describe: "Case: Normal tc".to_string(),
+			tc: || -> TC<TestBlock> {
+				let mut tc = TC::<TestBlock> { view, votes: Vec::new(), _phantom: PhantomData };
+				for authority_id in authorities.iter() {
+					let timeout = generate_timeout(keystore.clone(), &authority_id, view);
+					tc.votes.push((
+						authority_id.clone(),
+						timeout.signature.unwrap(),
+						timeout.high_qc.view,
+					));
+				}
+
+				tc
+			}(),
+			result: Ok(()),
+		},
+		TestCase {
+			describe: "Case: Insufficient quorum".to_string(),
+			tc: || -> TC<TestBlock> {
+				let mut tc = TC::<TestBlock> { view, votes: Vec::new(), _phantom: PhantomData };
+				let mut count = 0;
+				for authority_id in authorities.iter() {
+					if count == 2 {
+						break
+					}
+					count += 1;
+
+					let timeout = generate_timeout(keystore.clone(), &authority_id, view);
+					tc.votes.push((
+						authority_id.clone(),
+						timeout.signature.unwrap(),
+						timeout.high_qc.view,
+					));
+				}
+
+				tc
+			}(),
+			result: Err(InsufficientQuorum),
+		},
+		TestCase {
+			describe: "Case: Reuse quorum".to_string(),
+			tc: || -> TC<TestBlock> {
+				let mut tc = TC::<TestBlock> { view, votes: Vec::new(), _phantom: PhantomData };
+
+				for authority_id in authorities.iter() {
+					let timeout = generate_timeout(keystore.clone(), &authority_id, view);
+					tc.votes.push((authority_id.clone(), timeout.signature.clone().unwrap(), view));
+					tc.votes.push((
+						authority_id.clone(),
+						timeout.signature.unwrap(),
+						timeout.high_qc.view,
+					));
+				}
+
+				tc
+			}(),
+			result: Err(AuthorityReuse(authorities[0].clone())),
+		},
+		TestCase {
+			describe: "Case: Invalid signature".to_string(),
+			tc: || -> TC<TestBlock> {
+				let mut tc = TC::<TestBlock> { view, votes: Vec::new(), _phantom: PhantomData };
+
+				for authority_id in authorities.iter() {
+					let ban_signature = keystore
+						.sr25519_sign(HOTSTUFF_KEY_TYPE, authority_id.as_ref(), b"bad signature")
+						.unwrap()
+						.unwrap()
+						.into();
+
+					tc.votes.push((authority_id.clone(), ban_signature, 0));
+				}
+
+				tc
+			}(),
+			result: Err(InvalidSignature(authorities[0].clone())),
+		},
+	];
+
+	for case in cases {
+		assert_eq!(
+			case.tc.verify(&weighted_authorities),
+			case.result,
+			"tc verify failed. {} ",
 			case.describe
 		)
 	}

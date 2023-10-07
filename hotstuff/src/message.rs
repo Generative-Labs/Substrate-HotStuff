@@ -12,7 +12,7 @@ use sp_consensus_hotstuff::{AuthorityId, AuthorityList, AuthorityPair, Authority
 pub mod message_tests;
 
 /// Quorum certificate for a block.
-#[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
+#[derive(Debug, Eq, Clone, Encode, Decode)]
 pub struct QC<Block: BlockT> {
 	/// Hotstuff proposal hash.
 	pub proposal_hash: Block::Hash,
@@ -60,17 +60,23 @@ impl<Block: BlockT> QC<Block> {
 		}
 
 		if grant_votes <= (authorities.len() * 2 / 3) {
-			return Err(QCRequiresQuorum)
+			return Err(InsufficientQuorum)
 		}
 
 		let digest = self.digest();
-		// TODO parallel verify signature ?
+
 		for (voter, signature) in self.votes.iter() {
 			if !AuthorityPair::verify(signature, digest, voter) {
 				return Err(InvalidSignature(voter.clone()))
 			}
 		}
 		return Ok(())
+	}
+}
+
+impl<Block: BlockT> PartialEq for QC<Block> {
+	fn eq(&self, other: &Self) -> bool {
+		self.proposal_hash == other.proposal_hash && self.view == other.view
 	}
 }
 
@@ -163,15 +169,12 @@ impl<Block: BlockT> Vote<Block> {
 			.find(|authority| authority.0 == self.voter)
 			.ok_or(HotstuffError::UnknownAuthority(self.voter.to_owned()))?;
 
-		self.signature
-			.as_ref()
-			.map(|s| AuthorityPair::verify(s, self.digest(), &self.voter))
-			.map_or(Ok(()), |valid| {
-				if !valid {
-					return Err(InvalidSignature(self.voter.to_owned()))
-				}
-				Ok(())
-			})
+		self.signature.as_ref().ok_or(NullSignature).and_then(|signature| {
+			if !AuthorityPair::verify(signature, self.digest(), &self.voter) {
+				return Err(InvalidSignature(self.voter.to_owned()))
+			}
+			Ok(())
+		})
 	}
 }
 
@@ -200,17 +203,13 @@ impl<Block: BlockT> Timeout<Block> {
 			.find(|authority| authority.0 == self.voter)
 			.ok_or(HotstuffError::UnknownAuthority(self.voter.to_owned()))?;
 
-		self.signature
-			.as_ref()
-			.map(|s| AuthorityPair::verify(s, self.digest(), &self.voter))
-			.map_or(Ok(()), |valid| {
-				if !valid {
-					return Err(InvalidSignature(self.voter.to_owned()))
-				}
-				Ok(())
-			})?;
+		self.signature.as_ref().ok_or(NullSignature).and_then(|signature| {
+			if !AuthorityPair::verify(signature, self.digest(), &self.voter) {
+				return Err(InvalidSignature(self.voter.to_owned()))
+			}
+			Ok(())
+		})?;
 
-		// Every hotstuff start, it's high qc is null.
 		if self.high_qc != QC::<Block>::default() {
 			self.high_qc.verify(&authorities)?;
 		}
@@ -239,21 +238,19 @@ impl<Block: BlockT> TC<Block> {
 		}
 
 		if grant_votes <= (authorities.len() * 2 / 3) {
-			return Err(QCRequiresQuorum)
+			return Err(InsufficientQuorum)
 		}
 
-		self.votes
-			.iter()
-			.find_map(|(id, sig, high_qc_view)| {
-				let mut data = self.view.encode();
-				data.append(&mut high_qc_view.encode());
-				let digest = <<Block::Header as HeaderT>::Hashing as HashT>::hash_of(&data);
-				if !AuthorityPair::verify(sig, digest, id) {
-					return Some(id)
-				}
-				None
-			})
-			.map_or(Ok(()), |err_authority| Err(InvalidSignature(err_authority.to_owned())))?;
+		for (voter, signature, view) in self.votes.iter() {
+			// TODO a better way to construct `Timeout`, then call `Timeout::digest()`
+			let mut data = self.view.encode();
+			data.append(&mut view.encode());
+			let digest = <<Block::Header as HeaderT>::Hashing as HashT>::hash_of(&data);
+
+			if !AuthorityPair::verify(signature, digest, voter) {
+				return Err(InvalidSignature(voter.clone()))
+			}
+		}
 
 		Ok(())
 	}
