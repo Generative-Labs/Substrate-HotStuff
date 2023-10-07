@@ -252,7 +252,7 @@ fn test_vote_verify() {
 
 #[test]
 fn test_qc_verify() {
-	let TestEnv { keystore, weighted_authorities, test_block, view,.. } = create_test_env();
+	let TestEnv { keystore, weighted_authorities, test_block, view, .. } = create_test_env();
 
 	let authorities =
 		weighted_authorities.iter().map(|a| a.0.clone()).collect::<Vec<AuthorityId>>();
@@ -266,27 +266,120 @@ fn test_qc_verify() {
 		result: Result<(), HotstuffError>,
 	}
 
-	let cases = [TestCase {
-		describe: "with quorum".to_string(),
-		qc: QC::<TestBlock> {
-			proposal_hash: proposal.digest(),
-			view,
-			votes: || -> Vec<(AuthorityId, AuthoritySignature)> {
-				let mut votes = Vec::new();
-				for authority_id in authorities.iter() {
-					let vote = generate_vote_with_proposal(
-						keystore.clone(),
-						authority_id,
-						&proposal,
-						view,
-					);
-					votes.push((authority_id.to_owned(), vote.signature.unwrap()))
-				}
-				votes
-			}(),
+	let cases = [
+		TestCase {
+			describe: "With sufficient quorum".to_string(),
+			qc: QC::<TestBlock> {
+				proposal_hash: proposal.digest(),
+				view,
+				votes: || -> Vec<(AuthorityId, AuthoritySignature)> {
+					let mut votes = Vec::new();
+					for authority_id in authorities.iter() {
+						let vote = generate_vote_with_proposal(
+							keystore.clone(),
+							authority_id,
+							&proposal,
+							view,
+						);
+						votes.push((authority_id.to_owned(), vote.signature.unwrap()))
+					}
+					votes
+				}(),
+			},
+			result: Ok(()),
 		},
-		result: Ok(()),
-	}];
+		TestCase {
+			describe: "With insufficient quorum".to_string(),
+			qc: QC::<TestBlock> {
+				proposal_hash: proposal.digest(),
+				view,
+				votes: || -> Vec<(AuthorityId, AuthoritySignature)> {
+					let mut votes = Vec::new();
+					let mut count = 0;
+
+					for authority_id in authorities.iter() {
+						if count == 2 {
+							break
+						}
+						count += 1;
+						let vote = generate_vote_with_proposal(
+							keystore.clone(),
+							authority_id,
+							&proposal,
+							view,
+						);
+						votes.push((authority_id.to_owned(), vote.signature.unwrap()))
+					}
+					votes
+				}(),
+			},
+			result: Err(QCRequiresQuorum),
+		},
+		TestCase {
+			describe: "Reuse signature quorum".to_string(),
+			qc: QC::<TestBlock> {
+				proposal_hash: proposal.digest(),
+				view,
+				votes: || -> Vec<(AuthorityId, AuthoritySignature)> {
+					let mut votes = Vec::new();
+					let mut count = 0;
+
+					for authority_id in authorities.iter() {
+						if count == 2 {
+							break
+						}
+						count += 1;
+						let vote = generate_vote_with_proposal(
+							keystore.clone(),
+							authority_id,
+							&proposal,
+							view,
+						);
+						votes.push((authority_id.to_owned(), vote.signature.clone().unwrap()));
+						// reuse signature
+						votes.push((authority_id.to_owned(), vote.signature.unwrap()));
+					}
+					votes
+				}(),
+			},
+			result: Err(AuthorityReuse(authorities[0].clone())),
+		},
+		TestCase {
+			describe: "Invalid signature".to_string(),
+			qc: QC::<TestBlock> {
+				proposal_hash: proposal.digest(),
+				view,
+				votes: || -> Vec<(AuthorityId, AuthoritySignature)> {
+					let mut votes = Vec::new();
+
+					for authority_id in authorities.iter() {
+						let mut vote = generate_vote_with_proposal(
+							keystore.clone(),
+							authority_id,
+							&proposal,
+							view,
+						);
+
+						vote.signature = Some(
+							keystore
+								.sr25519_sign(
+									HOTSTUFF_KEY_TYPE,
+									authority_id.as_ref(),
+									b"bad digest",
+								)
+								.unwrap()
+								.unwrap()
+								.into(),
+						);
+
+						votes.push((authority_id.to_owned(), vote.signature.clone().unwrap()));
+					}
+					votes
+				}(),
+			},
+			result: Err(InvalidSignature(authorities[0].clone())),
+		},
+	];
 
 	for case in cases {
 		assert_eq!(

@@ -46,8 +46,7 @@ impl<Block: BlockT> QC<Block> {
 	}
 
 	// Verify if the number of votes in the QC has exceeded (2/3 + 1) of the total authorities.
-	// We are currently not considering the weight of authorities. So a valid QC contains at least 4
-	// votes.
+	// We are currently not considering the weight of authorities.
 	pub fn verify(&self, authorities: &AuthorityList) -> Result<(), HotstuffError> {
 		let mut used = HashSet::<AuthorityId>::new();
 		let mut grant_votes = 0;
@@ -60,7 +59,7 @@ impl<Block: BlockT> QC<Block> {
 			grant_votes += 1;
 		}
 
-		if grant_votes < (authorities.len() * 2 / 3) {
+		if grant_votes <= (authorities.len() * 2 / 3) {
 			return Err(QCRequiresQuorum)
 		}
 
