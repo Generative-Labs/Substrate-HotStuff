@@ -85,8 +85,6 @@ impl<B: BlockT> ConsensusState<B> {
 			signature: None,
 		};
 
-		// info!(target: "Hotstuff","authority {} make_timeout", authority_id);
-
 		tc.signature = self
 			.keystore
 			.sign_with(
@@ -191,7 +189,7 @@ impl<B: BlockT> ConsensusState<B> {
 
 	// add a verified timeout then try return a TC.
 	pub fn add_timeout(&mut self, timeout: &Timeout<B>) -> Result<Option<TC<B>>, HotstuffError> {
-		self.aggregator.add_timeout(&timeout, &self.authorities)
+		self.aggregator.add_timeout(timeout, &self.authorities)
 	}
 
 	// add a verified vote and try return a QC.
@@ -203,12 +201,6 @@ impl<B: BlockT> ConsensusState<B> {
 		if qc.view > self.high_qc.view {
 			self.high_qc = qc.clone()
 		}
-	}
-
-	pub fn advance_view(&mut self) -> bool {
-		self.view += 1;
-
-		return true
 	}
 
 	pub fn advance_view_from_target(&mut self, view: ViewNumber) {
@@ -228,9 +220,10 @@ impl<B: BlockT> ConsensusState<B> {
 		let leader_id = &self.authorities[leader_index as usize].0;
 
 		if let Some(id) = self.local_authority_id() {
-			return id.eq(&leader_id)
+			return id.eq(leader_id)
 		}
-		return false
+
+		false
 	}
 }
 
@@ -266,6 +259,8 @@ where
 	N: NetworkT<B> + Sync + 'static,
 	S: SyncingT<B> + Sync + 'static,
 {
+	// TODO now the construct function is developing.
+	#![allow(clippy::too_many_arguments)]
 	pub fn new(
 		consensus_state: ConsensusState<B>,
 		client: Arc<C>,
@@ -402,12 +397,13 @@ where
 		self.state.verify_proposal(proposal)?;
 
 		self.handle_qc(&proposal.qc);
-		proposal.tc.as_ref().map(|tc| {
+
+		if let Some(tc) = proposal.tc.as_ref() {
 			if tc.view > self.state.view() {
-				self.state.advance_view();
+				self.state.advance_view_from_target(tc.view);
 				self.local_timer.reset();
 			}
-		});
+		}
 
 		self.synchronizer.save_proposal(proposal)?;
 		self.processed_block_set.insert(proposal.payload);
@@ -437,7 +433,7 @@ where
 			return Ok(())
 		}
 
-		if let Some(vote) = self.state.make_vote(&proposal) {
+		if let Some(vote) = self.state.make_vote(proposal) {
 			info!(target: "Hotstuff","~~ {} handle proposal. make vote. vote.view {}", self.state.local_authority_id().unwrap(), vote.view);
 
 			let next_leader_id = self.state.view_leader(self.state.view() + 1);
@@ -465,14 +461,13 @@ where
 			vote.view,
 			self.state.view(),
 			vote.voter,
-			vote.hash,
+			vote.proposal_hash,
 		);
 
 		self.state.verify_vote(vote)?;
 
 		if let Some(qc) = self.state.add_vote(vote)? {
-			info!(target: "Hotstuff","~~ get enough vote, QC view:{:#?}, hash:{:#?}, self.view {}", qc.view, qc.hash, self.state.view());
-			// info!("!!! {:#?} {} {:#?} {} |vote digest {}, qc.digest {} ", vote.hash, vote.view, qc.hash, qc.view, vote.digest(), qc.digest());
+			info!(target: "Hotstuff","~~ get enough vote, QC view:{:#?}, hash:{:#?}, self.view {}", qc.view, qc.proposal_hash, self.state.view());
 			self.handle_qc(&qc);
 
 			info!(target: "Hotstuff","~~ get enough vote, after handle qc, self view {}", self.state.view());
@@ -514,7 +509,7 @@ where
 		info!(target: "Hotstuff","handle tc from network, self.view {}, {:#?}",self.state.view(), tc.view);
 		self.state.verify_tc(tc)?;
 
-		self.state.advance_view();
+		self.state.advance_view_from_target(tc.view);
 		self.local_timer.reset();
 
 		if self.state.is_leader() {
@@ -554,19 +549,15 @@ where
 	}
 
 	fn get_imported_block(&mut self) -> Option<B::Hash> {
-		loop {
-			match self.import_block_rx.try_recv() {
-				Ok(hash) => {
-					if self.processed_block_set.contains(&hash.0) {
-						let _ = self.processed_block_set.remove(&hash.0);
-						continue
-					}
-					return Some(hash.0)
-				},
-				Err(_e) => break,
+		while let Ok(hash) = self.import_block_rx.try_recv() {
+			if self.processed_block_set.contains(&hash.0) {
+				let _ = self.processed_block_set.remove(&hash.0);
+				continue
 			}
+			return Some(hash.0)
 		}
-		return Some(Self::empty_payload())
+
+		Some(Self::empty_payload())
 	}
 
 	fn empty_payload() -> B::Hash {

@@ -255,9 +255,9 @@ async fn run_to_completion(blocks: u64, net: Arc<Mutex<TestNet>>, peers: &[Sr255
 	run_to_completion_with(blocks, net, peers, |_| None).await
 }
 
-// Test when there are three honest nodes, they can achieve consensus on block finalization
+// Test when there are three voter, they can finalize block.
 #[tokio::test]
-async fn three_honest_voters_finalize_should_work() {
+async fn finalize_three_voters() {
 	sp_tracing::try_init_simple();
 
 	let peers = &[Sr25519Keyring::Alice, Sr25519Keyring::Bob, Sr25519Keyring::Charlie];
@@ -266,9 +266,40 @@ async fn three_honest_voters_finalize_should_work() {
 	let mut net = TestNet::new(TestApi::new(voters), 3, 0);
 	tokio::spawn(initialize_hotstuff(&mut net, peers));
 
-	net.peer(0).push_blocks(1, false);
+	net.peer(0).push_blocks(10, false);
 	net.run_until_sync().await;
 
 	let net = Arc::new(Mutex::new(net));
-	run_to_completion(1, net.clone(), peers).await;
+	run_to_completion(10, net.clone(), peers).await;
+
+	for i in 0..3 {
+		assert_eq!(net.lock().peer(i).client().info().finalized_number as u64, 10);
+	}
+}
+
+// Test when there are three voter and a full node, they can finalize block.
+#[tokio::test]
+async fn finalize_3_voters_with_1_full() {
+	sp_tracing::try_init_simple();
+
+	let peers = &[
+		Sr25519Keyring::Alice,
+		Sr25519Keyring::Bob,
+		Sr25519Keyring::Charlie,
+		Sr25519Keyring::Dave,
+	];
+	let voters = make_ids(peers);
+
+	let mut net = TestNet::new(TestApi::new(voters), 3, 1);
+	tokio::spawn(initialize_hotstuff(&mut net, peers));
+
+	net.peer(0).push_blocks(10, false);
+	net.run_until_sync().await;
+
+	let net = Arc::new(Mutex::new(net));
+	run_to_completion(10, net.clone(), peers).await;
+
+	for i in 0..4 {
+		assert_eq!(net.lock().peer(i).client().info().finalized_number as u64, 10);
+	}
 }

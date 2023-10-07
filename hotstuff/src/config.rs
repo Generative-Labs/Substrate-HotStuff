@@ -1,3 +1,5 @@
+#![allow(clippy::borrowed_box)]
+
 use sc_chain_spec::ChainSpec;
 use sc_network::types::ProtocolName;
 
