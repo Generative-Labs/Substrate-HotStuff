@@ -8,6 +8,7 @@ use crate::{
 	primitives::{HotstuffError, HotstuffError::*, ViewNumber},
 };
 
+#[derive(Default)]
 pub struct Aggregator<B: Block> {
 	votes_aggregator: HashMap<ViewNumber, HashMap<B::Hash, QCMaker>>,
 	timeouts_aggregators: HashMap<ViewNumber, TCMaker>,
@@ -25,9 +26,9 @@ impl<B: Block> Aggregator<B> {
 	) -> Result<Option<QC<B>>, HotstuffError> {
 		self.votes_aggregator
 			.entry(vote.view)
-			.or_insert_with(HashMap::new)
+			.or_default()
 			.entry(vote.digest())
-			.or_insert_with(|| QCMaker::new())
+			.or_default()
 			.append(vote, authorities)
 	}
 
@@ -39,7 +40,7 @@ impl<B: Block> Aggregator<B> {
 		// Add the new timeout to our aggregator and see if we have a TC.
 		self.timeouts_aggregators
 			.entry(timeout.view)
-			.or_insert_with(|| TCMaker::new())
+			.or_default()
 			.append(timeout.clone(), authorities)
 	}
 }
@@ -80,6 +81,12 @@ impl QCMaker {
 	}
 }
 
+impl Default for QCMaker {
+	fn default() -> Self {
+		Self::new()
+	}
+}
+
 pub struct TCMaker {
 	weight: u64,
 	votes: Vec<(AuthorityId, AuthoritySignature, ViewNumber)>,
@@ -114,5 +121,11 @@ impl TCMaker {
 			votes: self.votes.clone(),
 			_phantom: std::marker::PhantomData,
 		}))
+	}
+}
+
+impl Default for TCMaker {
+	fn default() -> Self {
+		Self::new()
 	}
 }

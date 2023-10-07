@@ -1,3 +1,4 @@
+#![allow(clippy::type_complexity)]
 use std::{marker::PhantomData, sync::Arc};
 
 use parity_scale_codec::Decode;

@@ -70,7 +70,7 @@ impl<Block: BlockT> QC<Block> {
 				return Err(InvalidSignature(voter.clone()))
 			}
 		}
-		return Ok(())
+		Ok(())
 	}
 }
 
@@ -211,7 +211,7 @@ impl<Block: BlockT> Timeout<Block> {
 		})?;
 
 		if self.high_qc != QC::<Block>::default() {
-			self.high_qc.verify(&authorities)?;
+			self.high_qc.verify(authorities)?;
 		}
 		Ok(())
 	}

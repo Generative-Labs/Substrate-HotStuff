@@ -6,7 +6,7 @@ use std::{
 	time::Duration,
 };
 
-use log::{debug, info};
+use log::info;
 use tokio::time::{interval, Instant, Interval};
 
 use sc_client_api::Backend;
@@ -71,29 +71,8 @@ where
 		&self,
 		proposal: &Proposal<B>,
 	) -> Result<(Proposal<B>, Proposal<B>), HotstuffError> {
-		debug!(
-			"~~ get_proposal_ancestors, for proposal {:#?}, parent {:#?}",
-			proposal.digest(),
-			proposal.parent_hash()
-		);
-
 		let parent = self.get_proposal_parent(proposal)?;
-
-		debug!(
-			"~~ get_proposal_ancestors has parent, for proposal {:#?}, parent {:#?}",
-			proposal.digest(),
-			proposal.parent_hash()
-		);
-
 		let grandpa = self.get_proposal_parent(&parent)?;
-
-		debug!(
-			"~~ get_proposal_ancestors has grandpa, for proposal {:#?}, parent {:#?}",
-			proposal.digest(),
-			proposal.parent_hash()
-		);
-
-		debug!("~~ get_proposal_ancestors, parent {:#?}, grandpa {:#?}", parent, grandpa);
 
 		Ok((parent, grandpa))
 	}

@@ -189,7 +189,7 @@ impl<B: BlockT> ConsensusState<B> {
 
 	// add a verified timeout then try return a TC.
 	pub fn add_timeout(&mut self, timeout: &Timeout<B>) -> Result<Option<TC<B>>, HotstuffError> {
-		self.aggregator.add_timeout(&timeout, &self.authorities)
+		self.aggregator.add_timeout(timeout, &self.authorities)
 	}
 
 	// add a verified vote and try return a QC.
@@ -220,9 +220,10 @@ impl<B: BlockT> ConsensusState<B> {
 		let leader_id = &self.authorities[leader_index as usize].0;
 
 		if let Some(id) = self.local_authority_id() {
-			return id.eq(&leader_id)
+			return id.eq(leader_id)
 		}
-		return false
+
+		false
 	}
 }
 
@@ -258,6 +259,8 @@ where
 	N: NetworkT<B> + Sync + 'static,
 	S: SyncingT<B> + Sync + 'static,
 {
+	// TODO now the construct function is developing.
+	#![allow(clippy::too_many_arguments)]
 	pub fn new(
 		consensus_state: ConsensusState<B>,
 		client: Arc<C>,
@@ -394,12 +397,13 @@ where
 		self.state.verify_proposal(proposal)?;
 
 		self.handle_qc(&proposal.qc);
-		proposal.tc.as_ref().map(|tc| {
+
+		if let Some(tc) = proposal.tc.as_ref() {
 			if tc.view > self.state.view() {
 				self.state.advance_view_from_target(tc.view);
 				self.local_timer.reset();
 			}
-		});
+		}
 
 		self.synchronizer.save_proposal(proposal)?;
 		self.processed_block_set.insert(proposal.payload);
@@ -429,7 +433,7 @@ where
 			return Ok(())
 		}
 
-		if let Some(vote) = self.state.make_vote(&proposal) {
+		if let Some(vote) = self.state.make_vote(proposal) {
 			info!(target: "Hotstuff","~~ {} handle proposal. make vote. vote.view {}", self.state.local_authority_id().unwrap(), vote.view);
 
 			let next_leader_id = self.state.view_leader(self.state.view() + 1);
@@ -545,19 +549,15 @@ where
 	}
 
 	fn get_imported_block(&mut self) -> Option<B::Hash> {
-		loop {
-			match self.import_block_rx.try_recv() {
-				Ok(hash) => {
-					if self.processed_block_set.contains(&hash.0) {
-						let _ = self.processed_block_set.remove(&hash.0);
-						continue
-					}
-					return Some(hash.0)
-				},
-				Err(_e) => break,
+		while let Ok(hash) = self.import_block_rx.try_recv() {
+			if self.processed_block_set.contains(&hash.0) {
+				let _ = self.processed_block_set.remove(&hash.0);
+				continue
 			}
+			return Some(hash.0)
 		}
-		return Some(Self::empty_payload())
+
+		Some(Self::empty_payload())
 	}
 
 	fn empty_payload() -> B::Hash {
