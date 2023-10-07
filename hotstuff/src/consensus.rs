@@ -173,7 +173,7 @@ impl<B: BlockT> ConsensusState<B> {
 
 	pub fn verify_vote(&self, vote: &Vote<B>) -> Result<(), HotstuffError> {
 		if vote.view < self.view {
-			return Err(InvalidVote)
+			return Err(ExpiredVote)
 		}
 
 		vote.verify(&self.authorities)
@@ -325,8 +325,7 @@ where
 	}
 
 	pub async fn handle_local_timer(&mut self) -> Result<(), HotstuffError> {
-		info!(target: "Hotstuff","~~ {} handle_local_timer. self.view {}",
-			self.state.local_authority_id().unwrap(), self.state.view());
+		info!(target: "Hotstuff","~~ handle_local_timer. self.view {}", self.state.view());
 
 		self.local_timer.reset();
 		self.state.increase_last_voted_view();
@@ -343,8 +342,8 @@ where
 	}
 
 	pub async fn handle_timeout(&mut self, timeout: &Timeout<B>) -> Result<(), HotstuffError> {
-		info!(target: "Hotstuff","~~ {} handle_timeout. timeout_view {},self.view {}, timeout.qc.view {}",
-			self.state.local_authority_id().unwrap(), timeout.view, self.state.view(), timeout.high_qc.view);
+		info!(target: "Hotstuff","~~ handle_timeout. self.view {}, timeout.view {}, timeout.author {}, timeout.qc.view {}",
+			self.state.view(), timeout.view, timeout.voter, timeout.high_qc.view);
 
 		if self.state.view() > timeout.view {
 			return Ok(())
@@ -356,12 +355,14 @@ where
 
 		if let Some(tc) = self.state.add_timeout(timeout)? {
 			if tc.view >= self.state.view() {
-				info!(target: "Hotstuff","~~ {} handle_timeout. get TC. tc.view {}, self.view {}, timeout.qc.view {}",
-					self.state.local_authority_id().unwrap(), tc.view, self.state.view(), timeout.high_qc.view);
+				info!(target: "Hotstuff","~~ handle_timeout. get TC. self.view {}, tc.view {}, timeout.qc.view {}",
+					self.state.view(), tc.view, timeout.high_qc.view);
 
 				self.state.advance_view_from_target(tc.view);
 				self.local_timer.reset();
 			}
+
+			info!(target: "Hotstuff","~~ handle_timeout. after get TC. self.view {}", self.state.view());
 
 			// This Timeout has received sufficient votes to form a TC (Timeout Certificate)
 			// and is broadcasted into the network. Nodes that voted for this Timeout will consider
@@ -373,8 +374,7 @@ where
 				.register_gossip_message(ConsensusMessage::<B>::gossip_topic(), message.encode());
 
 			if self.state.is_leader() {
-				info!(target: "Hotstuff","~~ {} handle_timeout. generate proposal as leader after valid TC. self.view {}, TC.view {}", 
-					self.state.local_authority_id().unwrap(), self.state.view(), timeout.view);
+				info!(target: "Hotstuff","~~ handle_timeout. leader make after valid TC. self.view {}, TC.view {}", self.state.view(), timeout.view);
 
 				self.generate_proposal(Some(tc)).await?;
 			}
@@ -385,8 +385,7 @@ where
 
 	#[async_recursion]
 	pub async fn handle_proposal(&mut self, proposal: &Proposal<B>) -> Result<(), HotstuffError> {
-		info!(target: "Hotstuff","~~ {} handle_proposal. self.view {}, proposal: view:{},  payload:{:#?}, author {}, digest {:#?}",
-			self.state.local_authority_id().unwrap(),
+		info!(target: "Hotstuff","~~ handle_proposal. self.view {}, proposal[ view:{},  payload:{}, author {}, digest {}]",
 			self.state.view(),
 			proposal.view,
 			proposal.payload,
@@ -413,9 +412,7 @@ where
 		// TODO
 		if let Err(e) = self.synchronizer.get_proposal_ancestors(proposal).and_then(|(b0, b1)| {
 			if b0.view == b1.view + 1 {
-				info!(target: "Hotstuff","~~ {} handle_proposal. block {} can finalize", 
-					self.state.local_authority_id().unwrap(),
-					b0.payload);
+				info!(target: "Hotstuff","~~ handle_proposal. block {} can finalize", b0.payload);
 
 				// TODO check weather this block has already finalize.
 				if b0.payload != Self::empty_payload() {
@@ -426,7 +423,7 @@ where
 			}
 			Ok(())
 		}) {
-			info!(target: "Hotstuff", "~~ {} handle_proposal. has error when finalize block {:#?}", self.state.local_authority_id().unwrap(), e);
+			info!(target: "Hotstuff", "~~ handle_proposal. has error when finalize block {:#?}", e);
 		}
 
 		if proposal.view != self.state.view() {
@@ -434,7 +431,7 @@ where
 		}
 
 		if let Some(vote) = self.state.make_vote(proposal) {
-			info!(target: "Hotstuff","~~ {} handle proposal. make vote. vote.view {}", self.state.local_authority_id().unwrap(), vote.view);
+			info!(target: "Hotstuff","~~ handle proposal. make vote. vote.view {}", vote.view);
 
 			let next_leader_id = self.state.view_leader(self.state.view() + 1);
 
@@ -456,10 +453,9 @@ where
 	}
 
 	pub async fn handle_vote(&mut self, vote: &Vote<B>) -> Result<(), HotstuffError> {
-		info!(target: "Hotstuff","~~ {} handle_vote.self.view {}, vote.view {:#?}, vote.author {:#?}, vote.hash {:#?}",
-			self.state.local_authority_id().unwrap(),
-			vote.view,
+		info!(target: "Hotstuff","~~ handle_vote. self.view {}, vote.view {}, vote.author {}, vote.hash {}",
 			self.state.view(),
+			vote.view,
 			vote.voter,
 			vote.proposal_hash,
 		);
@@ -467,14 +463,14 @@ where
 		self.state.verify_vote(vote)?;
 
 		if let Some(qc) = self.state.add_vote(vote)? {
-			info!(target: "Hotstuff","~~ get enough vote, QC view:{:#?}, hash:{:#?}, self.view {}", qc.view, qc.proposal_hash, self.state.view());
+			info!(target: "Hotstuff","~~ handle_vote. get QC. view:{}, proposal_hash:{}, self.view {}", qc.view, qc.proposal_hash, self.state.view());
 			self.handle_qc(&qc);
 
-			info!(target: "Hotstuff","~~ get enough vote, after handle qc, self view {}", self.state.view());
+			info!(target: "Hotstuff","~~ handle_vote. get QC. after handle qc, self view {}", self.state.view());
 			let current_leader = self.state.view_leader(self.state.view());
 			if self.state.local_authority_id().map_or(false, |id| id == current_leader) {
 				if let Some(hash) = self.get_imported_block() {
-					info!(target: "Hotstuff","make proposal, substrate block hash {:#?}", hash);
+					info!(target: "Hotstuff","~~ handle_vote. make proposal, substrate block hash {}", hash);
 
 					let block = self.state.make_proposal(hash, None)?;
 					let proposal_message = ConsensusMessage::Propose(block.clone());
@@ -506,14 +502,14 @@ where
 	}
 
 	pub async fn handle_tc(&mut self, tc: &TC<B>) -> Result<(), HotstuffError> {
-		info!(target: "Hotstuff","handle tc from network, self.view {}, {:#?}",self.state.view(), tc.view);
+		info!(target: "Hotstuff","~~ handle_tc. from network, self.view {}, tc.view {}",self.state.view(), tc.view);
 		self.state.verify_tc(tc)?;
 
 		self.state.advance_view_from_target(tc.view);
 		self.local_timer.reset();
 
 		if self.state.is_leader() {
-			info!(target: "Hotstuff","~~ generate_proposal when receive valid tc, tc.view {}, self.view {}",tc.view, self.state.view());
+			info!(target: "Hotstuff","~~ handle_tc. leader make proposal valid tc, tc.view {}, self.view {}",tc.view, self.state.view());
 			self.generate_proposal(None).await?;
 		}
 
@@ -523,8 +519,7 @@ where
 	pub async fn generate_proposal(&mut self, tc: Option<TC<B>>) -> Result<(), HotstuffError> {
 		match self.get_imported_block() {
 			Some(hash) => {
-				info!(target: "Hotstuff","~~ generate_proposal. {} substrate block_hash:{}, self.view:{}",
-					 self.state.local_authority_id().unwrap(),
+				info!(target: "Hotstuff","~~ generate_proposal. substrate block_hash:{}, self.view:{}",
 					hash,
 					self.state.view(),
 				);
@@ -541,7 +536,7 @@ where
 				self.handle_proposal(&proposal).await?;
 			},
 			None => {
-				info!(target: "Hotstuff","~~ generate_proposal. {} can't get substrate block.", self.state.local_authority_id().unwrap())
+				info!(target: "Hotstuff","~~ generate_proposal. can't get substrate block.")
 			},
 		}
 

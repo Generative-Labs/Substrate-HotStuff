@@ -26,7 +26,8 @@ pub enum HotstuffError {
 
 	ProposalNotFound,
 
-	InvalidVote,
+	// Vote from old view.
+	ExpiredVote,
 
 	InvalidTC,
 
