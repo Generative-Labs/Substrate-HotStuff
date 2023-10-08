@@ -94,6 +94,6 @@ where
 
 		// TODO request from network, wait result here?
 
-		Err(HotstuffError::ProposalNotFound)
+		Err(HotstuffError::ProposalNoParent)
 	}
 }

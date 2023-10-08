@@ -24,9 +24,12 @@ pub enum HotstuffError {
 
 	WrongProposer,
 
-	ProposalNotFound,
+	// can't find the parent of this proposal.
+	// TODO add proposal info.
+	ProposalNoParent,
 
-	InvalidVote,
+	// Vote from old view.
+	ExpiredVote,
 
 	InvalidTC,
 

@@ -21,7 +21,7 @@ use sp_runtime::traits::{Block as BlockT, Hash as HashT, Header as HeaderT, Numb
 
 use parking_lot::Mutex;
 
-use crate::{import::PeerReport, message::ConsensusMessage};
+use crate::{import::PeerReport, message::ConsensusMessage, primitives::ViewNumber};
 
 /// A handle to the network.
 ///
@@ -64,6 +64,7 @@ where
 }
 
 pub(super) struct GossipValidator<Block: BlockT> {
+	view: parking_lot::RwLock<ViewNumber>,
 	_phantom: Option<PhantomData<Block>>,
 }
 
@@ -73,9 +74,19 @@ impl<Block: BlockT> GossipValidator<Block> {
 	/// catch up requests (useful e.g. when running just the hotstuff observer).
 	pub(super) fn new() -> (GossipValidator<Block>, TracingUnboundedReceiver<PeerReport>) {
 		let (_tx, rx) = tracing_unbounded("mpsc_hotstuff_gossip_validator", 100_000);
-		let val = GossipValidator { _phantom: None };
+		let val = GossipValidator { _phantom: None, view: parking_lot::RwLock::new(0) };
 
 		(val, rx)
+	}
+
+	pub fn set_view(&self, new_view: ViewNumber) {
+		let mut view = self.view.write();
+		*view = new_view
+	}
+
+	pub fn get_view(&self) -> ViewNumber {
+		let view = self.view.read();
+		*view
 	}
 
 	pub fn do_validate(&self, mut data: &[u8]) -> Option<Block::Hash> {
@@ -116,7 +127,22 @@ impl<B: BlockT> sc_network_gossip::Validator<B> for GossipValidator<B> {
 
 	/// Produce a closure for validating messages on a given topic.
 	fn message_expired<'a>(&'a self) -> Box<dyn FnMut(B::Hash, &[u8]) -> bool + 'a> {
-		Box::new(move |_topic, _data| false)
+		Box::new(move |_topic, mut data| {
+			if let Ok(message) = ConsensusMessage::<B>::decode(&mut data) {
+				let message_vew =  match message {
+					ConsensusMessage::Propose(proposal) => proposal.view ,
+					ConsensusMessage::Vote(vote) => vote.view ,
+					ConsensusMessage::Timeout(timeout) => timeout.view ,
+					ConsensusMessage::TC(tc) => tc.view ,
+					_ => 0,
+				};
+
+				if message_vew > 10u64 && message_vew < self.get_view() -2{
+					return true
+				}
+			}
+			false
+		})
 	}
 
 	/// Produce a closure for filtering egress messages.
@@ -136,6 +162,7 @@ pub struct HotstuffNetworkBridge<B: BlockT, N: Network<B>, S: Syncing<B>> {
 	pub service: N,
 	pub sync: S,
 	pub gossip_engine: Arc<Mutex<GossipEngine<B>>>,
+	gossip_validator: Arc<GossipValidator<B>>,
 }
 
 pub type SetId = u64;
@@ -168,7 +195,11 @@ impl<B: BlockT, N: Network<B>, S: Syncing<B>> HotstuffNetworkBridge<B, N, S> {
 			None,
 		)));
 
-		HotstuffNetworkBridge { service, sync, gossip_engine }
+		HotstuffNetworkBridge { service, sync, gossip_engine, gossip_validator: validator.clone() }
+	}
+
+	pub fn set_view(&self, view: ViewNumber){
+		self.gossip_validator.set_view(view)
 	}
 
 	pub fn local_peer_id(&self) -> PeerId {
