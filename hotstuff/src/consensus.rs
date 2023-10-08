@@ -410,14 +410,14 @@ where
 		// Try get proposal ancestors. If we can't get them from local store,
 		// then get them by network. So should we block here.
 		// TODO
-		if let Err(e) = self.synchronizer.get_proposal_ancestors(proposal).and_then(|(b0, b1)| {
-			if b0.view == b1.view + 1 {
-				info!(target: "Hotstuff","~~ handle_proposal. block {} can finalize", b0.payload);
+		if let Err(e) = self.synchronizer.get_proposal_ancestors(proposal).and_then(|(parent, grandpa)| {
+			if parent.view == grandpa.view + 1 {
+				info!(target: "Hotstuff","~~ handle_proposal. block {} can finalize", grandpa.payload);
 
 				// TODO check weather this block has already finalize.
-				if b0.payload != Self::empty_payload() {
+				if grandpa.payload != Self::empty_payload() {
 					self.client
-						.finalize_block(b0.payload, None, true)
+						.finalize_block(grandpa.payload, None, true)
 						.map_err(|e| FinalizeBlock(e.to_string()))?;
 				}
 			}
@@ -445,7 +445,7 @@ where
 				self.network.gossip_engine.lock().register_gossip_message(
 					ConsensusMessage::<B>::gossip_topic(),
 					vote_message.encode(),
-				);
+									);
 			}
 		}
 
@@ -478,7 +478,7 @@ where
 					self.network.gossip_engine.lock().register_gossip_message(
 						ConsensusMessage::<B>::gossip_topic(),
 						proposal_message.encode(),
-					);
+											);
 
 					// Inform oneself to handle the proposal.
 					// self.consensus_msg_tx
@@ -530,7 +530,7 @@ where
 				self.network.gossip_engine.lock().register_gossip_message(
 					ConsensusMessage::<B>::gossip_topic(),
 					proposal_message.encode(),
-				);
+									);
 
 				// TODO Inform oneself to handle the proposal by channel?
 				self.handle_proposal(&proposal).await?;
