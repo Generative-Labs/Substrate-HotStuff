@@ -358,7 +358,7 @@ where
 				info!(target: "Hotstuff","~~ handle_timeout. get TC. self.view {}, tc.view {}, timeout.qc.view {}",
 					self.state.view(), tc.view, timeout.high_qc.view);
 
-				self.state.advance_view_from_target(tc.view);
+				self.advance_view(tc.view);
 				self.local_timer.reset();
 			}
 
@@ -399,7 +399,7 @@ where
 
 		if let Some(tc) = proposal.tc.as_ref() {
 			if tc.view > self.state.view() {
-				self.state.advance_view_from_target(tc.view);
+				self.advance_view(tc.view);
 				self.local_timer.reset();
 			}
 		}
@@ -410,19 +410,22 @@ where
 		// Try get proposal ancestors. If we can't get them from local store,
 		// then get them by network. So should we block here.
 		// TODO
-		if let Err(e) = self.synchronizer.get_proposal_ancestors(proposal).and_then(|(parent, grandpa)| {
-			if parent.view == grandpa.view + 1 {
-				info!(target: "Hotstuff","~~ handle_proposal. block {} can finalize", grandpa.payload);
+		if let Err(e) =
+			self.synchronizer
+				.get_proposal_ancestors(proposal)
+				.and_then(|(parent, grandpa)| {
+					if parent.view == grandpa.view + 1 {
+						info!(target: "Hotstuff","~~ handle_proposal. block {} can finalize", grandpa.payload);
 
-				// TODO check weather this block has already finalize.
-				if grandpa.payload != Self::empty_payload() {
-					self.client
-						.finalize_block(grandpa.payload, None, true)
-						.map_err(|e| FinalizeBlock(e.to_string()))?;
-				}
-			}
-			Ok(())
-		}) {
+						// TODO check weather this block has already finalize.
+						if grandpa.payload != Self::empty_payload() {
+							self.client
+								.finalize_block(grandpa.payload, None, true)
+								.map_err(|e| FinalizeBlock(e.to_string()))?;
+						}
+					}
+					Ok(())
+				}) {
 			info!(target: "Hotstuff", "~~ handle_proposal. has error when finalize block {:#?}", e);
 		}
 
@@ -445,7 +448,7 @@ where
 				self.network.gossip_engine.lock().register_gossip_message(
 					ConsensusMessage::<B>::gossip_topic(),
 					vote_message.encode(),
-									);
+				);
 			}
 		}
 
@@ -478,7 +481,7 @@ where
 					self.network.gossip_engine.lock().register_gossip_message(
 						ConsensusMessage::<B>::gossip_topic(),
 						proposal_message.encode(),
-											);
+					);
 
 					// Inform oneself to handle the proposal.
 					// self.consensus_msg_tx
@@ -495,7 +498,7 @@ where
 
 	pub fn handle_qc(&mut self, qc: &QC<B>) {
 		if qc.view >= self.state.view() {
-			self.state.advance_view_from_target(qc.view);
+			self.advance_view(qc.view);
 			self.state.update_high_qc(qc);
 			self.local_timer.reset();
 		}
@@ -505,7 +508,7 @@ where
 		info!(target: "Hotstuff","~~ handle_tc. from network, self.view {}, tc.view {}",self.state.view(), tc.view);
 		self.state.verify_tc(tc)?;
 
-		self.state.advance_view_from_target(tc.view);
+		self.advance_view(tc.view);
 		self.local_timer.reset();
 
 		if self.state.is_leader() {
@@ -530,7 +533,7 @@ where
 				self.network.gossip_engine.lock().register_gossip_message(
 					ConsensusMessage::<B>::gossip_topic(),
 					proposal_message.encode(),
-									);
+				);
 
 				// TODO Inform oneself to handle the proposal by channel?
 				self.handle_proposal(&proposal).await?;
@@ -553,6 +556,11 @@ where
 		}
 
 		Some(Self::empty_payload())
+	}
+
+	fn advance_view(&mut self, view: ViewNumber){
+		self.state.advance_view_from_target(view);
+		self.network.set_view(self.state.view());
 	}
 
 	fn empty_payload() -> B::Hash {
