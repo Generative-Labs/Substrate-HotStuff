@@ -1,0 +1,31 @@
+name: Rust
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly-2023-04-15
+          components: rustfmt
+          target: wasm32-unknown-unknown
+          override: true
+          default: true
+      - name: Install Wasm toolchain
+        run: rustup target add wasm32-unknown-unknown
+      - name: Test hotstuff
+        run: cargo test -p hotstuff
