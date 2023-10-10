@@ -9,7 +9,6 @@ use sc_utils::mpsc::TracingUnboundedSender;
 use sp_api::TransactionFor;
 use sp_blockchain::BlockStatus;
 use sp_consensus::Error as ConsensusError;
-use sp_consensus_grandpa::GrandpaApi;
 use sp_runtime::{
 	traits::{Block as BlockT, Header as HeaderT, NumberFor},
 	Justification,
@@ -55,10 +54,9 @@ impl<Backend, Block: BlockT, Client> HotstuffBlockImport<Backend, Block, Client>
 #[async_trait::async_trait]
 impl<BE, Block: BlockT, Client> BlockImport<Block> for HotstuffBlockImport<BE, Block, Client>
 where
-	NumberFor<Block>: finality_grandpa::BlockNumberOps,
+	// NumberFor<Block>: finality_grandpa::BlockNumberOps,
 	BE: Backend<Block>,
 	Client: ClientForHotstuff<Block, BE>,
-	Client::Api: GrandpaApi<Block>,
 	for<'a> &'a Client:
 		BlockImport<Block, Error = ConsensusError, Transaction = TransactionFor<Client, Block>>,
 	TransactionFor<Client, Block>: 'static,
@@ -120,7 +118,7 @@ impl<BE, Block: BlockT, Client> HotstuffBlockImport<BE, Block, Client>
 where
 	BE: Backend<Block>,
 	Client: ClientForHotstuff<Block, BE>,
-	NumberFor<Block>: finality_grandpa::BlockNumberOps,
+	// NumberFor<Block>: finality_grandpa::BlockNumberOps,
 {
 	/// Import a block justification and finalize the block.
 	///
@@ -156,7 +154,7 @@ where
 impl<BE, Block: BlockT, Client> JustificationImport<Block>
 	for HotstuffBlockImport<BE, Block, Client>
 where
-	NumberFor<Block>: finality_grandpa::BlockNumberOps,
+	// NumberFor<Block>: finality_grandpa::BlockNumberOps,
 	BE: Backend<Block>,
 	Client: ClientForHotstuff<Block, BE>,
 {

@@ -4,14 +4,12 @@
 // };
 
 use node_template_runtime::{
-	pallet_hotstuff, AccountId, BalancesConfig, GrandpaConfig, RuntimeGenesisConfig, Signature,
-	SudoConfig, SystemConfig, WASM_BINARY,
+	pallet_hotstuff, AccountId, BalancesConfig, RuntimeGenesisConfig, Signature, SudoConfig,
+	SystemConfig, WASM_BINARY,
 };
 
 use sc_service::ChainType;
-use sp_consensus_hotstuff::sr25519::AuthorityId as HotStuffId;
-// use sp_consensus_aura::sr25519::AuthorityId as AuraId;
-use sp_consensus_grandpa::AuthorityId as GrandpaId;
+use sp_consensus_hotstuff::AuthorityId as HotStuffId;
 use sp_core::{sr25519, Pair, Public};
 use sp_runtime::traits::{IdentifyAccount, Verify};
 
@@ -38,14 +36,9 @@ where
 	AccountPublic::from(get_from_seed::<TPublic>(seed)).into_account()
 }
 
-/// Generate an Aura authority key.
-// pub fn authority_keys_from_seed(s: &str) -> (AuraId, GrandpaId) {
-// 	(get_from_seed::<AuraId>(s), get_from_seed::<GrandpaId>(s))
-// }
-
 /// Generate an Hotstuff authority key.
-pub fn hotstuff_authority_keys_from_seed(s: &str) -> (HotStuffId, GrandpaId) {
-	(get_from_seed::<HotStuffId>(s), get_from_seed::<GrandpaId>(s))
+pub fn hotstuff_authority_keys_from_seed(s: &str) -> HotStuffId {
+	get_from_seed::<HotStuffId>(s)
 }
 
 pub fn development_config() -> Result<ChainSpec, String> {
@@ -60,8 +53,6 @@ pub fn development_config() -> Result<ChainSpec, String> {
 		move || {
 			testnet_genesis(
 				wasm_binary,
-				// Initial PoA authorities
-				// vec![authority_keys_from_seed("Alice")],
 				vec![
 					hotstuff_authority_keys_from_seed("Alice"),
 					hotstuff_authority_keys_from_seed("Bob"),
@@ -105,7 +96,6 @@ pub fn local_testnet_config() -> Result<ChainSpec, String> {
 			testnet_genesis(
 				wasm_binary,
 				// Initial PoA authorities
-				// vec![authority_keys_from_seed("Alice"), authority_keys_from_seed("Bob")],
 				vec![
 					hotstuff_authority_keys_from_seed("Alice"),
 					hotstuff_authority_keys_from_seed("Bob"),
@@ -149,8 +139,7 @@ pub fn local_testnet_config() -> Result<ChainSpec, String> {
 /// Configure initial storage state for FRAME modules.
 fn testnet_genesis(
 	wasm_binary: &[u8],
-	// initial_authorities: Vec<(AuraId, GrandpaId)>,
-	initial_hotstuff_authorities: Vec<(HotStuffId, GrandpaId)>,
+	initial_hotstuff_authorities: Vec<HotStuffId>,
 	root_key: AccountId,
 	endowed_accounts: Vec<AccountId>,
 	_enable_println: bool,
@@ -165,20 +154,13 @@ fn testnet_genesis(
 			// Configure endowed accounts with initial balance of 1 << 60.
 			balances: endowed_accounts.iter().cloned().map(|k| (k, 1 << 60)).collect(),
 		},
-		// aura: AuraConfig {
-		// 	authorities: initial_authorities.iter().map(|x| (x.0.clone())).collect(),
-		// },
-		grandpa: GrandpaConfig {
-			authorities: initial_hotstuff_authorities.iter().map(|x| (x.1.clone(), 1)).collect(),
-			..Default::default()
-		},
 		sudo: SudoConfig {
 			// Assign network admin rights.
 			key: Some(root_key),
 		},
 		transaction_payment: Default::default(),
 		hotstuff: pallet_hotstuff::GenesisConfig {
-			authorities: initial_hotstuff_authorities.iter().map(|x| (x.0.clone())).collect(),
+			authorities: initial_hotstuff_authorities.iter().cloned().collect(),
 		},
 	}
 }

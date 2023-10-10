@@ -1,10 +1,9 @@
 use std::{fmt::Debug, marker::PhantomData, ops::Add};
 
-use finality_grandpa::voter_set::VoterSet;
 use parity_scale_codec::{Decode, Encode};
 use parking_lot::MappedMutexGuard;
 use sc_consensus::shared_data::{SharedData, SharedDataLocked};
-use sp_consensus_hotstuff::{AuthorityId, AuthorityList};
+use sp_consensus_hotstuff::AuthorityList;
 
 /// A shared authority set.
 pub struct SharedAuthoritySet<H, N> {
@@ -20,23 +19,9 @@ where
 	pub fn authority_set_changes(&self) -> AuthoritySetChanges<N> {
 		self.inner().authority_set_changes.clone()
 	}
-
-	/// Get the current authorities and their weights (for the current set ID).
-	pub fn current_authorities(&self) -> VoterSet<AuthorityId> {
-		VoterSet::new(self.inner().current_authorities.iter().cloned()).expect(
-			"current_authorities is non-empty and weights are non-zero; \
-			 constructor and all mutating operations on `AuthoritySet` ensure this; \
-			 qed.",
-		)
-	}
 }
 
 impl<H, N> SharedAuthoritySet<H, N> {
-	/// Returns access to the [`AuthoritySet`].
-	// pub(crate) fn inner(&self) -> MappedMutexGuard<AuthoritySet<H, N>> {
-	// 	self.inner.shared_data()
-	// }
-
 	pub fn inner(&self) -> MappedMutexGuard<AuthoritySet<H, N>> {
 		self.inner.shared_data()
 	}

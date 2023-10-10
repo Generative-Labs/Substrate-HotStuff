@@ -206,7 +206,6 @@ impl<T: Config> Pallet<T> {
 	///
 	/// This is a no-op if `new` is empty.
 	pub fn change_authorities(new: BoundedVec<T::AuthorityId, T::MaxAuthorities>) {
-		log::info!("=== change_authorities");
 		if new.is_empty() {
 			log::warn!(target: LOG_TARGET, "Ignoring empty authority change.");
 

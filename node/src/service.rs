@@ -1,11 +1,9 @@
 //! Service and ServiceFactory implementation. Specialized wrapper over substrate service.
+use std::sync::Arc;
 
 use futures::FutureExt;
-use node_template_runtime::{self, opaque::Block, RuntimeApi};
-use sc_client_api::{Backend, BlockBackend};
-// use sc_consensus_aura::{ImportQueueParams, StartAuraParams, SlotProportion};
-// use sc_consensus_grandpa::{SharedVoterState, ClientForGrandpa};
 
+use sc_client_api::{Backend, BlockBackend};
 use sc_consensus_hotstuff::{ImportQueueParams, SlotProportion, StartHotstuffParams};
 
 pub use sc_executor::NativeElseWasmExecutor;
@@ -13,12 +11,9 @@ use sc_service::{error::Error as ServiceError, Configuration, TaskManager};
 use sc_telemetry::{Telemetry, TelemetryWorker};
 use sc_transaction_pool_api::OffchainTransactionPoolFactory;
 
-// use sp_consensus_aura::sr25519::AuthorityPair as AuraPair;
-use sp_consensus_hotstuff::sr25519::AuthorityPair as HotstuffPair;
+use sp_consensus_hotstuff::AuthorityPair as HotstuffPair;
 
-use std::sync::Arc;
-
-use sc_consensus_hotstuff;
+use node_template_runtime::{self, opaque::Block, RuntimeApi};
 
 // Our native executor instance.
 pub struct ExecutorDispatch;
