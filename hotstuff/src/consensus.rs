@@ -558,7 +558,7 @@ where
 		Some(Self::empty_payload())
 	}
 
-	fn advance_view(&mut self, view: ViewNumber){
+	fn advance_view(&mut self, view: ViewNumber) {
 		self.state.advance_view_from_target(view);
 		self.network.set_view(self.state.view());
 	}
@@ -661,7 +661,7 @@ where
 	N: NetworkT<B> + Sync + 'static,
 	S: SyncingT<B> + Sync + 'static,
 	C: ClientForHotstuff<B, BE> + 'static,
-	C::Api: sp_consensus_grandpa::GrandpaApi<B>,
+	C::Api: sp_consensus_hotstuff::HotstuffApi<B, AuthorityId>,
 {
 	let LinkHalf { client, import_block_rx, .. } = link;
 	let authorities = get_genesis_authorities_from_client::<B, BE, C>(client.clone());
@@ -725,7 +725,6 @@ where
 	N: NetworkT<B> + Sync + 'static,
 	S: SyncingT<B> + Sync + 'static,
 	C: ClientForHotstuff<B, BE> + 'static,
-	C::Api: sp_consensus_grandpa::GrandpaApi<B>,
 {
 	let LinkHalf { client, import_block_rx, .. } = link;
 

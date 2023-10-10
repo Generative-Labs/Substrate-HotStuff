@@ -129,15 +129,15 @@ impl<B: BlockT> sc_network_gossip::Validator<B> for GossipValidator<B> {
 	fn message_expired<'a>(&'a self) -> Box<dyn FnMut(B::Hash, &[u8]) -> bool + 'a> {
 		Box::new(move |_topic, mut data| {
 			if let Ok(message) = ConsensusMessage::<B>::decode(&mut data) {
-				let message_vew =  match message {
-					ConsensusMessage::Propose(proposal) => proposal.view ,
-					ConsensusMessage::Vote(vote) => vote.view ,
-					ConsensusMessage::Timeout(timeout) => timeout.view ,
-					ConsensusMessage::TC(tc) => tc.view ,
+				let message_vew = match message {
+					ConsensusMessage::Propose(proposal) => proposal.view,
+					ConsensusMessage::Vote(vote) => vote.view,
+					ConsensusMessage::Timeout(timeout) => timeout.view,
+					ConsensusMessage::TC(tc) => tc.view,
 					_ => 0,
 				};
 
-				if message_vew > 10u64 && message_vew < self.get_view() -2{
+				if message_vew > 10u64 && message_vew < self.get_view() - 2 {
 					return true
 				}
 			}
@@ -198,7 +198,7 @@ impl<B: BlockT, N: Network<B>, S: Syncing<B>> HotstuffNetworkBridge<B, N, S> {
 		HotstuffNetworkBridge { service, sync, gossip_engine, gossip_validator: validator.clone() }
 	}
 
-	pub fn set_view(&self, view: ViewNumber){
+	pub fn set_view(&self, view: ViewNumber) {
 		self.gossip_validator.set_view(view)
 	}
 

@@ -11,7 +11,7 @@ use sc_consensus::BlockImport;
 use sc_utils::mpsc::{tracing_unbounded, TracingUnboundedReceiver};
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::{Error as ClientError, HeaderBackend, HeaderMetadata};
-use sp_consensus_hotstuff::AuthorityList;
+use sp_consensus_hotstuff::AuthorityId;
 use sp_core::traits::CallContext;
 use sp_runtime::{
 	generic::BlockId,
@@ -79,11 +79,6 @@ pub struct LinkHalf<Block: BlockT, C, SC> {
 	pub select_chain: Option<PhantomData<SC>>,
 	pub(crate) persistent_data: aux_schema::PersistentData<Block>,
 	pub import_block_rx: TracingUnboundedReceiver<(Block::Hash, NumberFor<Block>)>,
-	// voter_commands_rx: TracingUnboundedReceiver<VoterCommand<Block::Hash, NumberFor<Block>>>,
-	// justification_sender: GrandpaJustificationSender<Block>,
-	// justification_stream: GrandpaJustificationStream<Block>,
-
-	// telemetry: Option<TelemetryHandle>,
 }
 
 impl<Block: BlockT, C, SC> LinkHalf<Block, C, SC> {
@@ -91,17 +86,12 @@ impl<Block: BlockT, C, SC> LinkHalf<Block, C, SC> {
 	pub fn shared_authority_set(&self) -> &SharedAuthoritySet<Block::Hash, NumberFor<Block>> {
 		&self.persistent_data.authority_set
 	}
-
-	// /// Get the receiving end of justification notifications.
-	// pub fn justification_stream(&self) -> GrandpaJustificationStream<Block> {
-	// 	self.justification_stream.clone()
-	// }
 }
 
 /// Provider for the Hotstuff authority set configured on the genesis block.
 pub trait GenesisAuthoritySetProvider<Block: BlockT> {
 	/// Get the authority set at the genesis block.
-	fn get(&self) -> Result<AuthorityList, ClientError>;
+	fn get(&self) -> Result<Vec<AuthorityId>, ClientError>;
 }
 
 impl<Block: BlockT, E, Client> GenesisAuthoritySetProvider<Block> for Arc<Client>
@@ -109,14 +99,14 @@ where
 	E: CallExecutor<Block>,
 	Client: ExecutorProvider<Block, Executor = E> + HeaderBackend<Block>,
 {
-	fn get(&self) -> Result<AuthorityList, ClientError> {
+	fn get(&self) -> Result<Vec<AuthorityId>, ClientError> {
 		// This implementation uses the Grandpa runtime API instead of reading directly from the
 		// `GRANDPA_AUTHORITIES_KEY` as the data may have been migrated since the genesis block of
 		// the chain, whereas the runtime API is backwards compatible.
 		self.executor()
 			.call(
 				self.expect_block_hash_from_id(&BlockId::Number(Zero::zero()))?,
-				"GrandpaApi_grandpa_authorities",
+				"HotstuffApi_authorities",
 				&[],
 				CallContext::Offchain,
 			)
@@ -150,6 +140,10 @@ where
 		<NumberFor<Block>>::zero(),
 		move || {
 			let authorities = genesis_authorities_provider.get()?;
+
+			// TODO just for dev.
+			let authorities =
+				authorities.iter().map(|p| (p.clone(), 1)).collect::<Vec<(AuthorityId, u64)>>();
 
 			Ok(authorities)
 		},

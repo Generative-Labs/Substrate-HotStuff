@@ -3,6 +3,7 @@ use super::*;
 
 use futures::{future, stream, FutureExt};
 use parking_lot::{Mutex, RwLock};
+use sp_consensus_hotstuff::HotstuffApi;
 use tokio::runtime::Handle;
 
 use sc_consensus::{BoxJustificationImport, LongestChain};
@@ -11,7 +12,6 @@ use sc_network_test::{
 	PeersFullClient, TestNetFactory,
 };
 use sp_api::{ApiRef, ProvideRuntimeApi};
-use sp_consensus_hotstuff::HotstuffApi;
 use sp_keyring::Sr25519Keyring;
 use sp_keystore::{testing::MemoryKeystore, Keystore, KeystorePtr};
 use sp_runtime::traits::Header as HeaderT;
@@ -40,36 +40,20 @@ impl TestApi {
 }
 
 pub(crate) struct RuntimeApi {
-	inner: TestApi,
+	_inner: TestApi,
 }
 
 impl ProvideRuntimeApi<Block> for TestApi {
 	type Api = RuntimeApi;
 
 	fn runtime_api(&self) -> ApiRef<'_, Self::Api> {
-		RuntimeApi { inner: self.clone() }.into()
+		RuntimeApi { _inner: self.clone() }.into()
 	}
 }
 
 impl GenesisAuthoritySetProvider<Block> for TestApi {
-	fn get(&self) -> sp_blockchain::Result<AuthorityList> {
-		Ok(self.genesis_authorities.clone())
-	}
-}
-
-sp_api::mock_impl_runtime_apis! {
-	impl HotstuffApi<Block, AuthorityId> for RuntimeApi {
-		fn slot_duration() -> sp_consensus_hotstuff::SlotDuration {
-			sp_consensus_hotstuff::SlotDuration::from_millis(1000)
-		}
-
-		fn authorities() -> Vec<AuthorityId> {
-			self.inner
-				.genesis_authorities
-				.iter()
-				.map(|(id, _)| id.clone())
-				.collect::<Vec<AuthorityId>>()
-		}
+	fn get(&self) -> sp_blockchain::Result<Vec<AuthorityId>> {
+		Ok(self.genesis_authorities.iter().map(|a| a.0.clone()).collect())
 	}
 }
 
@@ -77,6 +61,19 @@ sp_api::mock_impl_runtime_apis! {
 struct TestNet {
 	peers: Vec<HotstuffPeer>,
 	test_config: TestApi,
+}
+
+sp_api::mock_impl_runtime_apis! {
+	impl HotstuffApi<Block, AuthorityId> for RuntimeApi {
+		fn slot_duration() -> sp_consensus_hotstuff::SlotDuration {
+			// sp_consensus_hotstuff::SlotDuration::from_millis(Hotstuff::slot_duration())
+			unimplemented!()
+		}
+
+		fn authorities() -> Vec<AuthorityId> {
+			unimplemented!()
+		}
+	}
 }
 
 impl TestNet {

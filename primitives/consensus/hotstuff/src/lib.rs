@@ -38,25 +38,25 @@ sp_application_crypto::with_pair! {
 	pub type AuthorityPair = app::Pair;
 }
 
-pub mod sr25519 {
-	mod app_sr25519 {
-		use crate::HOTSTUFF_KEY_TYPE;
+// pub mod sr25519 {
+// 	mod app_sr25519 {
+// 		use crate::HOTSTUFF_KEY_TYPE;
 
-		use sp_application_crypto::{app_crypto, sr25519};
-		app_crypto!(sr25519, HOTSTUFF_KEY_TYPE);
-	}
+// 		use sp_application_crypto::{app_crypto, sr25519};
+// 		app_crypto!(sr25519, HOTSTUFF_KEY_TYPE);
+// 	}
 
-	sp_application_crypto::with_pair! {
-		/// An Hotstuff authority keypair using S/R 25519 as its crypto.
-		pub type AuthorityPair = app_sr25519::Pair;
-	}
+// 	sp_application_crypto::with_pair! {
+// 		/// An Hotstuff authority keypair using S/R 25519 as its crypto.
+// 		pub type AuthorityPair = app_sr25519::Pair;
+// 	}
 
-	/// An Hotstuff authority signature using S/R 25519 as its crypto.
-	pub type AuthoritySignature = app_sr25519::Signature;
+// 	/// An Hotstuff authority signature using S/R 25519 as its crypto.
+// 	pub type AuthoritySignature = app_sr25519::Signature;
 
-	/// An Hotstuff authority identifier using S/R 25519 as its crypto.
-	pub type AuthorityId = app_sr25519::Public;
-}
+// 	/// An Hotstuff authority identifier using S/R 25519 as its crypto.
+// 	pub type AuthorityId = app_sr25519::Public;
+// }
 
 // /// Identity of a Hotstuff authority.
 pub type AuthorityId = app::Public;
