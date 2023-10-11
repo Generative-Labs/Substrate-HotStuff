@@ -243,6 +243,7 @@ pub struct ConsensusWorker<
 	_consensus_msg_tx: Sender<ConsensusMessage<B>>,
 	consensus_msg_rx: Receiver<ConsensusMessage<B>>,
 
+	processing_block: Option<BlockInfo<B>>,
 	pending_finalize_queue: Arc<Mutex<VecDeque<BlockInfo<B>>>>,
 }
 
@@ -266,6 +267,8 @@ where
 		consensus_msg_rx: Receiver<ConsensusMessage<B>>,
 		pending_finalize_queue: Arc<Mutex<VecDeque<BlockInfo<B>>>>,
 	) -> Self {
+		let pending_block = pending_finalize_queue.lock().ok().and_then(|q| q.front().cloned());
+
 		Self {
 			state: consensus_state,
 			network,
@@ -274,6 +277,7 @@ where
 			consensus_msg_rx,
 			client,
 			synchronizer,
+			processing_block: pending_block,
 			pending_finalize_queue,
 		}
 	}
@@ -464,7 +468,7 @@ where
 			info!(target: "Hotstuff","~~ handle_vote. get QC. after handle qc, self view {}", self.state.view());
 			let current_leader = self.state.view_leader(self.state.view());
 			if self.state.local_authority_id().map_or(false, |id| id == current_leader) {
-				if let Some(hash) = self.get_imported_block() {
+				if let Some(hash) = self.get_proposal_block() {
 					info!(target: "Hotstuff","~~ handle_vote. make proposal, substrate block hash {}", hash);
 
 					let block = self.state.make_proposal(hash, None)?;
@@ -512,7 +516,7 @@ where
 	}
 
 	pub async fn generate_proposal(&mut self, tc: Option<TC<B>>) -> Result<(), HotstuffError> {
-		match self.get_imported_block() {
+		match self.get_proposal_block() {
 			Some(hash) => {
 				info!(target: "Hotstuff","~~ generate_proposal. substrate block_hash:{}, self.view:{}",
 					hash,
@@ -538,13 +542,24 @@ where
 		Ok(())
 	}
 
-	fn get_imported_block(&mut self) -> Option<B::Hash> {
+	fn get_proposal_block(&mut self) -> Option<B::Hash> {
 		match self.pending_finalize_queue.lock() {
-			Ok(mut queue) => {
-				if let Some(b) = queue.pop_front() {
-					return b.hash
-				}
-				Some(Self::empty_payload())
+			Ok(queue) => {
+				queue.front().map(|b| {
+					info!(target: "Hotstuff", "*** get_proposal_block. {}", b.hash.unwrap());
+		
+					if let Some(processing_block) = self.processing_block.as_mut() {
+						// processing is equal front element of queue, do nothing.
+						if processing_block == b {
+							return None;
+						}
+						*processing_block = b.clone();
+					}else{
+						self.processing_block = Some(b.clone());
+					}
+
+					b.hash
+				}).unwrap_or_else(|| Some(Self::empty_payload()))
 			},
 			Err(_) => None,
 		}

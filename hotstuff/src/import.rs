@@ -188,7 +188,7 @@ pub(crate) struct PeerReport {
 	pub cost_benefit: ReputationChange,
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct BlockInfo<B: BlockT> {
 	pub hash: Option<B::Hash>,
 	pub number: <B::Header as HeaderT>::Number,
@@ -202,7 +202,7 @@ pub(crate) struct PendingFinalizeBlockQueue<B: BlockT> {
 	finalize_notification: FinalityNotifications<B>,
 
 	// A queue cache the block hash and block number which wait for finalize.
-	pending_finalize_block: Arc<Mutex<VecDeque<BlockInfo<B>>>>,
+	inner: Arc<Mutex<VecDeque<BlockInfo<B>>>>,
 }
 
 impl<B: BlockT> PendingFinalizeBlockQueue<B> {
@@ -225,12 +225,12 @@ impl<B: BlockT> PendingFinalizeBlockQueue<B> {
 		Ok(Self {
 			import_notification: client.every_import_notification_stream(),
 			finalize_notification: client.finality_notification_stream(),
-			pending_finalize_block: Arc::new(Mutex::new(VecDeque::new())),
+			inner: Arc::new(Mutex::new(VecDeque::new())),
 		})
 	}
 
 	pub fn queue(&self) -> Arc<Mutex<VecDeque<BlockInfo<B>>>> {
-		self.pending_finalize_block.clone()
+		self.inner.clone()
 	}
 }
 
@@ -248,7 +248,8 @@ impl<B: BlockT> Future for PendingFinalizeBlockQueue<B> {
 						continue
 					}
 
-					if let Ok(mut pending) = self.pending_finalize_block.lock() {
+					if let Ok(mut pending) = self.inner.lock() {
+						log::info!(target: "Hotstuff", "*** push {}", notification.hash);
 						pending.push_back(BlockInfo {
 							hash: Some(notification.hash),
 							number: notification.header.number().clone(),
@@ -262,19 +263,20 @@ impl<B: BlockT> Future for PendingFinalizeBlockQueue<B> {
 		loop {
 			match StreamExt::poll_next_unpin(&mut self.finalize_notification, cx) {
 				Poll::Ready(None) => break,
-				Poll::Ready(Some(notification)) => {
-					if let Ok(mut pending) = self.pending_finalize_block.lock() {
+				Poll::Ready(Some(notification)) =>
+					if let Ok(mut pending) = self.inner.lock() {
 						let finalized_number = notification.header.number();
 
 						while let Some(elem) = pending.front() {
 							if elem.number <= *finalized_number {
-								pending.pop_front();
+								if let Some(b) = pending.pop_front() {
+									log::info!(target: "Hotstuff", "*** pop {}", b.hash.unwrap());
+								}
 							} else {
 								break
 							}
 						}
-					}
-				},
+					},
 				Poll::Pending => break,
 			}
 		}

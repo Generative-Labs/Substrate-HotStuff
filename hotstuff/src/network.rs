@@ -137,7 +137,7 @@ impl<B: BlockT> sc_network_gossip::Validator<B> for GossipValidator<B> {
 					_ => 0,
 				};
 
-				if message_vew > 10u64 && message_vew < self.get_view() - 2 {
+				if message_vew > 2u64 && message_vew < self.get_view() - 1 {
 					return true
 				}
 			}
