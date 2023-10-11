@@ -1,8 +1,8 @@
 use std::{
 	cmp::max,
-	collections::HashSet,
+	collections::VecDeque,
 	pin::Pin,
-	sync::Arc,
+	sync::{Arc, Mutex},
 	task::{Context, Poll},
 };
 
@@ -16,19 +16,19 @@ use tokio::sync::mpsc::{channel, Receiver, Sender};
 use sc_client_api::{Backend, CallExecutor};
 use sc_network::types::ProtocolName;
 use sc_network_gossip::TopicNotification;
-use sc_utils::mpsc::TracingUnboundedReceiver;
 use sp_application_crypto::AppCrypto;
 use sp_consensus_hotstuff::{AuthorityId, AuthorityList, AuthoritySignature, HOTSTUFF_KEY_TYPE};
 use sp_core::{crypto::ByteArray, traits::CallContext};
 use sp_keystore::KeystorePtr;
 use sp_runtime::{
 	generic::BlockId,
-	traits::{Block as BlockT, Hash as HashT, Header as HeaderT, NumberFor, Zero},
+	traits::{Block as BlockT, Hash as HashT, Header as HeaderT, Zero},
 };
 
 use crate::{
 	aggregator::Aggregator,
 	client::{ClientForHotstuff, LinkHalf},
+	import::{BlockInfo, PendingFinalizeBlockQueue},
 	message::{ConsensusMessage, ConsensusMessage::*, Proposal, Timeout, Vote, QC, TC},
 	network::{HotstuffNetworkBridge, Network as NetworkT, Syncing as SyncingT},
 	primitives::{HotstuffError, HotstuffError::*, ViewNumber},
@@ -240,15 +240,10 @@ pub struct ConsensusWorker<
 	client: Arc<C>,
 	local_timer: Timer,
 	synchronizer: Synchronizer<B, BE, C>,
-	import_block_rx: TracingUnboundedReceiver<(B::Hash, NumberFor<B>)>,
 	_consensus_msg_tx: Sender<ConsensusMessage<B>>,
 	consensus_msg_rx: Receiver<ConsensusMessage<B>>,
 
-	// Sometimes, when we have already voted for a proposal from a peer,
-	// but we haven't consumed the block hash sent to us by BlockImport,
-	// this can potentially lead to different proposals having the same payload.
-	// Therefore, we need to keep a record of the processed block hashes.
-	processed_block_set: HashSet<B::Hash>,
+	pending_finalize_queue: Arc<Mutex<VecDeque<BlockInfo<B>>>>,
 }
 
 impl<B, BE, C, N, S> ConsensusWorker<B, BE, C, N, S>
@@ -269,9 +264,8 @@ where
 		local_timer_duration: u64,
 		consensus_msg_tx: Sender<ConsensusMessage<B>>,
 		consensus_msg_rx: Receiver<ConsensusMessage<B>>,
-		import_block_rx: TracingUnboundedReceiver<(B::Hash, NumberFor<B>)>,
+		pending_finalize_queue: Arc<Mutex<VecDeque<BlockInfo<B>>>>,
 	) -> Self {
-		// TODO channel size?
 		Self {
 			state: consensus_state,
 			network,
@@ -280,8 +274,7 @@ where
 			consensus_msg_rx,
 			client,
 			synchronizer,
-			import_block_rx,
-			processed_block_set: HashSet::new(),
+			pending_finalize_queue,
 		}
 	}
 
@@ -405,7 +398,6 @@ where
 		}
 
 		self.synchronizer.save_proposal(proposal)?;
-		self.processed_block_set.insert(proposal.payload);
 
 		// Try get proposal ancestors. If we can't get them from local store,
 		// then get them by network. So should we block here.
@@ -547,15 +539,15 @@ where
 	}
 
 	fn get_imported_block(&mut self) -> Option<B::Hash> {
-		while let Ok(hash) = self.import_block_rx.try_recv() {
-			if self.processed_block_set.contains(&hash.0) {
-				let _ = self.processed_block_set.remove(&hash.0);
-				continue
-			}
-			return Some(hash.0)
+		match self.pending_finalize_queue.lock() {
+			Ok(mut queue) => {
+				if let Some(b) = queue.pop_front() {
+					return b.hash
+				}
+				Some(Self::empty_payload())
+			},
+			Err(_) => None,
 		}
-
-		Some(Self::empty_payload())
 	}
 
 	fn advance_view(&mut self, view: ViewNumber) {
@@ -566,6 +558,17 @@ where
 	fn empty_payload() -> B::Hash {
 		<<B::Header as HeaderT>::Hashing as HashT>::hash(b"hotstuff/empty_payload")
 	}
+}
+
+pub struct ConsensusNetwork<
+	B: BlockT,
+	N: NetworkT<B> + Sync + 'static,
+	S: SyncingT<B> + Sync + 'static,
+> {
+	network: HotstuffNetworkBridge<B, N, S>,
+	message_recv: Recv<TopicNotification>,
+	consensus_msg_tx: Sender<ConsensusMessage<B>>,
+	pending_queue: PendingFinalizeBlockQueue<B>,
 }
 
 impl<B, N, S> Future for ConsensusNetwork<B, N, S>
@@ -589,6 +592,11 @@ where
 			};
 		}
 
+		match Future::poll(Pin::new(&mut self.pending_queue), cx) {
+			Poll::Ready(_) => {},
+			Poll::Pending => {},
+		};
+
 		match Future::poll(Pin::new(&mut self.network), cx) {
 			Poll::Ready(_) => {},
 			Poll::Pending => {},
@@ -598,25 +606,16 @@ where
 	}
 }
 
-pub struct ConsensusNetwork<
-	B: BlockT,
-	N: NetworkT<B> + Sync + 'static,
-	S: SyncingT<B> + Sync + 'static,
-> {
-	network: HotstuffNetworkBridge<B, N, S>,
-	message_recv: Recv<TopicNotification>,
-	consensus_msg_tx: Sender<ConsensusMessage<B>>,
-}
-
 impl<B, N, S> ConsensusNetwork<B, N, S>
 where
 	B: BlockT,
 	N: NetworkT<B> + Sync + 'static,
 	S: SyncingT<B> + Sync + 'static,
 {
-	pub fn new(
+	fn new(
 		network: HotstuffNetworkBridge<B, N, S>,
 		consensus_msg_tx: Sender<ConsensusMessage<B>>,
+		pending_queue: PendingFinalizeBlockQueue<B>,
 	) -> Self {
 		let message_recv = network
 			.gossip_engine
@@ -624,7 +623,7 @@ where
 			.lock()
 			.messages_for(ConsensusMessage::<B>::gossip_topic());
 
-		Self { network, consensus_msg_tx, message_recv }
+		Self { network, consensus_msg_tx, message_recv, pending_queue }
 	}
 
 	pub fn incoming_message_handler(
@@ -663,7 +662,7 @@ where
 	C: ClientForHotstuff<B, BE> + 'static,
 	C::Api: sp_consensus_hotstuff::HotstuffApi<B, AuthorityId>,
 {
-	let LinkHalf { client, import_block_rx, .. } = link;
+	let LinkHalf { client, .. } = link;
 	let authorities = get_genesis_authorities_from_client::<B, BE, C>(client.clone());
 
 	let network = HotstuffNetworkBridge::new(network.clone(), sync.clone(), hotstuff_protocol_name);
@@ -671,6 +670,8 @@ where
 	let consensus_state = ConsensusState::<B>::new(keystore, authorities);
 
 	let (consensus_msg_tx, consensus_msg_rx) = channel::<ConsensusMessage<B>>(1000);
+
+	let queue = PendingFinalizeBlockQueue::<B>::new(client.clone()).expect("error");
 
 	let consensus_worker = ConsensusWorker::<B, BE, C, N, S>::new(
 		consensus_state,
@@ -680,10 +681,10 @@ where
 		3000,
 		consensus_msg_tx.clone(),
 		consensus_msg_rx,
-		import_block_rx,
+		queue.queue(),
 	);
 
-	let consensus_network = ConsensusNetwork::<B, N, S>::new(network, consensus_msg_tx);
+	let consensus_network = ConsensusNetwork::<B, N, S>::new(network, consensus_msg_tx, queue);
 
 	Ok((async { consensus_worker.run().await }, consensus_network))
 }
@@ -726,13 +727,15 @@ where
 	S: SyncingT<B> + Sync + 'static,
 	C: ClientForHotstuff<B, BE> + 'static,
 {
-	let LinkHalf { client, import_block_rx, .. } = link;
+	let LinkHalf { client, .. } = link;
 
 	let network = HotstuffNetworkBridge::new(network.clone(), sync.clone(), hotstuff_protocol_name);
 	let synchronizer = Synchronizer::<B, BE, C>::new(client.clone());
 	let consensus_state = ConsensusState::<B>::new(keystore, authorities);
 
 	let (consensus_msg_tx, consensus_msg_rx) = channel::<ConsensusMessage<B>>(1000);
+
+	let queue = PendingFinalizeBlockQueue::<B>::new(client.clone()).expect("error");
 
 	let consensus_worker = ConsensusWorker::<B, BE, C, N, S>::new(
 		consensus_state,
@@ -742,10 +745,10 @@ where
 		2000,
 		consensus_msg_tx.clone(),
 		consensus_msg_rx,
-		import_block_rx,
+		queue.queue(),
 	);
 
-	let consensus_network = ConsensusNetwork::<B, N, S>::new(network, consensus_msg_tx);
+	let consensus_network = ConsensusNetwork::<B, N, S>::new(network, consensus_msg_tx, queue);
 
 	Ok((async { consensus_worker.run().await }, consensus_network))
 }

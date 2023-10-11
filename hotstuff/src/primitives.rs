@@ -37,5 +37,8 @@ pub enum HotstuffError {
 
 	SaveProposal(String),
 
+	// Error generate by node client.
+	ClientError(String),
+
 	Other(String),
 }
