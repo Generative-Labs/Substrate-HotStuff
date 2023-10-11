@@ -549,7 +549,7 @@ where
 					info!(target: "Hotstuff", "*** get_proposal_block. {}", b.hash.unwrap());
 		
 					if let Some(processing_block) = self.processing_block.as_mut() {
-						// processing is equal front element of queue, do nothing.
+						// processing is equal front element of queue, there is no new block to finalize.
 						if processing_block == b {
 							return None;
 						}
