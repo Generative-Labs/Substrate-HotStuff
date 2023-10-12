@@ -350,6 +350,8 @@ where
 
 		self.handle_qc(&timeout.high_qc);
 
+		self.reset_processing_block();
+
 		if let Some(tc) = self.state.add_timeout(timeout)? {
 			if tc.view >= self.state.view() {
 				info!(target: "Hotstuff","~~ handle_timeout. get TC. self.view {}, tc.view {}, timeout.qc.view {}",
@@ -414,7 +416,9 @@ where
 						info!(target: "Hotstuff","~~ handle_proposal. block {} can finalize", grandpa.payload);
 
 						// TODO check weather this block has already finalize.
-						if grandpa.payload != Self::empty_payload() {
+						if grandpa.payload != Self::empty_payload() &&
+							grandpa.payload != self.client.info().finalized_hash
+						{
 							self.client
 								.finalize_block(grandpa.payload, None, true)
 								.map_err(|e| FinalizeBlock(e.to_string()))?;
@@ -542,27 +546,38 @@ where
 		Ok(())
 	}
 
+	// `get_proposal_block` defines a method for obtaining a Substrate client block for proposal.
+	// The `ConsensusWorker` maintains a `VecDeque` to store the imported blocks from the client.
+	// When the `ConsensusWorker` receives a finalized block notification, it removes finalized
+	// blocks from the `VecDeque`. The `processing_block` indicates the current proposed block,
+	// initially set to `None`. When a Consensus Timeout occurs, it is also set to `None`.
+	// If there is no timeout and a proposal is being made, it searches for blocks in the `VecDeque`
+	// that have numbers greater than the `processing_block`.
+	// If no blocks greater than the `processing_block` are found in the `VecDeque`,
+	// it proposes an empty block.
 	fn get_proposal_block(&mut self) -> Option<B::Hash> {
-		match self.pending_finalize_queue.lock() {
-			Ok(queue) => {
-				queue.front().map(|b| {
-					info!(target: "Hotstuff", "*** get_proposal_block. {}", b.hash.unwrap());
-		
-					if let Some(processing_block) = self.processing_block.as_mut() {
-						// processing is equal front element of queue, there is no new block to finalize.
-						if processing_block == b {
-							return None;
-						}
-						*processing_block = b.clone();
-					}else{
-						self.processing_block = Some(b.clone());
-					}
+		if let Ok(queue) = self.pending_finalize_queue.lock() {
+			if let Some(block) = self.processing_block.as_ref() {
+				match queue.iter().find(|elem| elem.number > block.number) {
+					Some(find) => self.processing_block = Some(find.clone()),
+					None => return Some(Self::empty_payload()),
+				}
+			} else {
+				self.processing_block = queue.front().cloned()
+			}
 
-					b.hash
-				}).unwrap_or_else(|| Some(Self::empty_payload()))
-			},
-			Err(_) => None,
+			if let Some(b) = self.processing_block.as_ref() {
+				return b.hash
+			}
+
+			return Some(Self::empty_payload())
 		}
+
+		None
+	}
+
+	fn reset_processing_block(&mut self) {
+		self.processing_block = None
 	}
 
 	fn advance_view(&mut self, view: ViewNumber) {

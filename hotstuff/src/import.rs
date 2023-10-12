@@ -268,12 +268,11 @@ impl<B: BlockT> Future for PendingFinalizeBlockQueue<B> {
 						let finalized_number = notification.header.number();
 
 						while let Some(elem) = pending.front() {
-							if elem.number <= *finalized_number {
-								if let Some(b) = pending.pop_front() {
-									log::info!(target: "Hotstuff", "*** pop {}", b.hash.unwrap());
-								}
-							} else {
+							if elem.number > *finalized_number {
 								break
+							}
+							if let Some(b) = pending.pop_front() {
+								log::info!(target: "Hotstuff", "*** pop {}", b.hash.unwrap());
 							}
 						}
 					},
