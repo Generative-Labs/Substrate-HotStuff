@@ -39,6 +39,8 @@ use crate::{
 #[path = "tests/consensus_tests.rs"]
 pub mod consensus_tests;
 
+pub(crate) const EMPTY_PAYLOAD: &[u8] = b"hotstuff/empty_payload";
+
 // the core of hotstuff
 pub struct ConsensusState<B: BlockT> {
 	keystore: KeystorePtr,
@@ -555,10 +557,14 @@ where
 	// that have numbers greater than the `processing_block`.
 	// If no blocks greater than the `processing_block` are found in the `VecDeque`,
 	// it proposes an empty block.
-	fn get_proposal_block(&mut self) -> Option<B::Hash> {
+	pub(crate) fn get_proposal_block(&mut self) -> Option<B::Hash> {
 		if let Ok(queue) = self.pending_finalize_queue.lock() {
-			if let Some(block) = self.processing_block.as_ref() {
-				match queue.iter().find(|elem| elem.number > block.number) {
+			if let Some(processing) = self.processing_block.as_ref() {
+				if processing.number > self.client.info().finalized_number {
+					return Some(Self::empty_payload())
+				}
+
+				match queue.iter().find(|elem| elem.number > processing.number) {
 					Some(find) => self.processing_block = Some(find.clone()),
 					None => return Some(Self::empty_payload()),
 				}
@@ -585,8 +591,8 @@ where
 		self.network.set_view(self.state.view());
 	}
 
-	fn empty_payload() -> B::Hash {
-		<<B::Header as HeaderT>::Hashing as HashT>::hash(b"hotstuff/empty_payload")
+	pub(crate) fn empty_payload() -> B::Hash {
+		<<B::Header as HeaderT>::Hashing as HashT>::hash(EMPTY_PAYLOAD)
 	}
 }
 
@@ -739,46 +745,4 @@ pub fn get_genesis_authorities_from_client<
 	let authorities: Vec<AuthorityId> = Decode::decode(&mut &authorities_data[..]).expect("");
 
 	authorities.iter().map(|id| (id.clone(), 0)).collect::<AuthorityList>()
-}
-
-#[cfg(test)]
-pub fn start_hotstuff_with_authority<B, BE, C, N, S, SC>(
-	network: N,
-	link: LinkHalf<B, C, SC>,
-	sync: S,
-	hotstuff_protocol_name: ProtocolName,
-	keystore: KeystorePtr,
-	authorities: AuthorityList,
-) -> sp_blockchain::Result<(impl Future<Output = ()> + Send, impl Future<Output = ()> + Send)>
-where
-	B: BlockT,
-	BE: Backend<B> + 'static,
-	N: NetworkT<B> + Sync + 'static,
-	S: SyncingT<B> + Sync + 'static,
-	C: ClientForHotstuff<B, BE> + 'static,
-{
-	let LinkHalf { client, .. } = link;
-
-	let network = HotstuffNetworkBridge::new(network.clone(), sync.clone(), hotstuff_protocol_name);
-	let synchronizer = Synchronizer::<B, BE, C>::new(client.clone());
-	let consensus_state = ConsensusState::<B>::new(keystore, authorities);
-
-	let (consensus_msg_tx, consensus_msg_rx) = channel::<ConsensusMessage<B>>(1000);
-
-	let queue = PendingFinalizeBlockQueue::<B>::new(client.clone()).expect("error");
-
-	let consensus_worker = ConsensusWorker::<B, BE, C, N, S>::new(
-		consensus_state,
-		client,
-		network.clone(),
-		synchronizer,
-		2000,
-		consensus_msg_tx.clone(),
-		consensus_msg_rx,
-		queue.queue(),
-	);
-
-	let consensus_network = ConsensusNetwork::<B, N, S>::new(network, consensus_msg_tx, queue);
-
-	Ok((async { consensus_worker.run().await }, consensus_network))
 }

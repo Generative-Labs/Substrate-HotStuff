@@ -46,4 +46,5 @@ sc-transaction-pool = { version = "4.0.0-dev", git = "https://github.com/parityt
 sc-network-test = { version = "0.8.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 sp-tracing = { version = "10.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 substrate-test-runtime-client = { version = "2.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
+substrate-test-runtime = { version = "2.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 

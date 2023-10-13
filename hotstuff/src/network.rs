@@ -181,9 +181,6 @@ impl<B: BlockT, N: Network<B>, S: Syncing<B>> HotstuffNetworkBridge<B, N, S> {
 	/// On creation it will register previous rounds' votes with the gossip
 	/// service taken from the VoterSetState.
 	pub fn new(service: N, sync: S, protocol_name: ProtocolName) -> Self {
-		// let protocol = config.protocol_name.clone();
-		println!(">>>HotstuffNetworkBridge start 🔥");
-
 		let (validator, _report_stream) = GossipValidator::new();
 
 		let validator = Arc::new(validator);
