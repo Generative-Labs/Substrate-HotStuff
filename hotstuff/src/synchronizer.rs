@@ -6,7 +6,7 @@ use std::{
 	time::Duration,
 };
 
-use log::info;
+use log::debug;
 use tokio::time::{interval, Instant, Interval};
 
 use sc_client_api::Backend;
@@ -58,7 +58,7 @@ where
 		let value = proposal.encode();
 		let key = proposal.digest();
 
-		info!("~~ save proposal, digest {}", key);
+		debug!("~~ save proposal, digest {}", key);
 
 		self.store
 			.set(key.as_ref(), &value)

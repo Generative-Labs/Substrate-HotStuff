@@ -115,7 +115,6 @@ impl TCMaker {
 			return Ok(None)
 		}
 
-		// log::info!(target: "Hotstuff Aggregator","Valid TC weight {}", self.weight);
 		Ok(Some(TC::<B> {
 			view: timeout.view,
 			votes: self.votes.clone(),

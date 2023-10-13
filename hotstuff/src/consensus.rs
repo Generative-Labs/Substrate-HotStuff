@@ -9,7 +9,7 @@ use std::{
 use async_recursion::async_recursion;
 use futures::{channel::mpsc::Receiver as Recv, Future, StreamExt};
 
-use log::{error, info};
+use log::{error, debug};
 use parity_scale_codec::{Decode, Encode};
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 
@@ -290,28 +290,28 @@ where
 					Propose(proposal) => {
 						match self.handle_proposal(&proposal).await{
 							Ok(_) => {},
-							Err(e) =>  info!(target: "Hotstuff","{:#?} handle_proposal has error {:#?}",self.state.local_authority_id(), e),
+							Err(e) =>  debug!(target: "Hotstuff","{:#?} handle_proposal has error {:#?}",self.state.local_authority_id(), e),
 						};
 						Ok(())
 					},
 					Vote(vote) => {
 						match self.handle_vote(&vote).await{
 							Ok(_) => {},
-							Err(e) => info!(target: "Hotstuff","handle_vote has error {:#?}", e),
+							Err(e) => debug!(target: "Hotstuff","handle_vote has error {:#?}", e),
 						};
 						Ok(())
 					},
 					Timeout(timeout) => {
 						match self.handle_timeout(&timeout).await{
 							Ok(_) => {},
-							Err(e) => info!(target: "Hotstuff","{:#?} handle_timeout has error {:#?}",self.state.local_authority_id(), e),
+							Err(e) => debug!(target: "Hotstuff","{:#?} handle_timeout has error {:#?}",self.state.local_authority_id(), e),
 						};
 						Ok(())
 					},
 					TC(tc) => {
 						match self.handle_tc(&tc).await{
 							Ok(_) => {},
-							Err(e) =>  info!(target: "Hotstuff","handle_tc has error {:#?}", e),
+							Err(e) =>  debug!(target: "Hotstuff","handle_tc has error {:#?}", e),
 						}
 						Ok(())
 					},
@@ -322,7 +322,7 @@ where
 	}
 
 	pub async fn handle_local_timer(&mut self) -> Result<(), HotstuffError> {
-		info!(target: "Hotstuff","~~ handle_local_timer. self.view {}", self.state.view());
+		debug!(target: "Hotstuff","~~ handle_local_timer. self.view {}", self.state.view());
 
 		self.local_timer.reset();
 		self.state.increase_last_voted_view();
@@ -339,7 +339,7 @@ where
 	}
 
 	pub async fn handle_timeout(&mut self, timeout: &Timeout<B>) -> Result<(), HotstuffError> {
-		info!(target: "Hotstuff","~~ handle_timeout. self.view {}, timeout.view {}, timeout.author {}, timeout.qc.view {}",
+		debug!(target: "Hotstuff","~~ handle_timeout. self.view {}, timeout.view {}, timeout.author {}, timeout.qc.view {}",
 			self.state.view(), timeout.view, timeout.voter, timeout.high_qc.view);
 
 		if self.state.view() > timeout.view {
@@ -354,14 +354,14 @@ where
 
 		if let Some(tc) = self.state.add_timeout(timeout)? {
 			if tc.view >= self.state.view() {
-				info!(target: "Hotstuff","~~ handle_timeout. get TC. self.view {}, tc.view {}, timeout.qc.view {}",
+				debug!(target: "Hotstuff","~~ handle_timeout. get TC. self.view {}, tc.view {}, timeout.qc.view {}",
 					self.state.view(), tc.view, timeout.high_qc.view);
 
 				self.advance_view(tc.view);
 				self.local_timer.reset();
 			}
 
-			info!(target: "Hotstuff","~~ handle_timeout. after get TC. self.view {}", self.state.view());
+			debug!(target: "Hotstuff","~~ handle_timeout. after get TC. self.view {}", self.state.view());
 
 			// This Timeout has received sufficient votes to form a TC (Timeout Certificate)
 			// and is broadcasted into the network. Nodes that voted for this Timeout will consider
@@ -373,7 +373,7 @@ where
 				.register_gossip_message(ConsensusMessage::<B>::gossip_topic(), message.encode());
 
 			if self.state.is_leader() {
-				info!(target: "Hotstuff","~~ handle_timeout. leader make after valid TC. self.view {}, TC.view {}", self.state.view(), timeout.view);
+				debug!(target: "Hotstuff","~~ handle_timeout. leader make after valid TC. self.view {}, TC.view {}", self.state.view(), timeout.view);
 
 				self.generate_proposal(Some(tc)).await?;
 			}
@@ -384,7 +384,7 @@ where
 
 	#[async_recursion]
 	pub async fn handle_proposal(&mut self, proposal: &Proposal<B>) -> Result<(), HotstuffError> {
-		info!(target: "Hotstuff","~~ handle_proposal. self.view {}, proposal[ view:{},  payload:{}, author {}, digest {}]",
+		debug!(target: "Hotstuff","~~ handle_proposal. self.view {}, proposal[ view:{},  payload:{}, author {}, digest {}]",
 			self.state.view(),
 			proposal.view,
 			proposal.payload,
@@ -413,7 +413,7 @@ where
 				.get_proposal_ancestors(proposal)
 				.and_then(|(parent, grandpa)| {
 					if parent.view == grandpa.view + 1 {
-						info!(target: "Hotstuff","~~ handle_proposal. block {} can finalize", grandpa.payload);
+						debug!(target: "Hotstuff","~~ handle_proposal. block {} can finalize", grandpa.payload);
 
 						// TODO check weather this block has already finalize.
 						if grandpa.payload != Self::empty_payload() &&
@@ -426,7 +426,7 @@ where
 					}
 					Ok(())
 				}) {
-			info!(target: "Hotstuff", "~~ handle_proposal. has error when finalize block {:#?}", e);
+			debug!(target: "Hotstuff", "~~ handle_proposal. has error when finalize block {:#?}", e);
 		}
 
 		if proposal.view != self.state.view() {
@@ -434,7 +434,7 @@ where
 		}
 
 		if let Some(vote) = self.state.make_vote(proposal) {
-			info!(target: "Hotstuff","~~ handle proposal. make vote. vote.view {}", vote.view);
+			debug!(target: "Hotstuff","~~ handle proposal. make vote. vote.view {}", vote.view);
 
 			let next_leader_id = self.state.view_leader(self.state.view() + 1);
 
@@ -456,7 +456,7 @@ where
 	}
 
 	pub async fn handle_vote(&mut self, vote: &Vote<B>) -> Result<(), HotstuffError> {
-		info!(target: "Hotstuff","~~ handle_vote. self.view {}, vote.view {}, vote.author {}, vote.hash {}",
+		debug!(target: "Hotstuff","~~ handle_vote. self.view {}, vote.view {}, vote.author {}, vote.hash {}",
 			self.state.view(),
 			vote.view,
 			vote.voter,
@@ -466,14 +466,14 @@ where
 		self.state.verify_vote(vote)?;
 
 		if let Some(qc) = self.state.add_vote(vote)? {
-			info!(target: "Hotstuff","~~ handle_vote. get QC. view:{}, proposal_hash:{}, self.view {}", qc.view, qc.proposal_hash, self.state.view());
+			debug!(target: "Hotstuff","~~ handle_vote. get QC. view:{}, proposal_hash:{}, self.view {}", qc.view, qc.proposal_hash, self.state.view());
 			self.handle_qc(&qc);
 
-			info!(target: "Hotstuff","~~ handle_vote. get QC. after handle qc, self view {}", self.state.view());
+			debug!(target: "Hotstuff","~~ handle_vote. get QC. after handle qc, self view {}", self.state.view());
 			let current_leader = self.state.view_leader(self.state.view());
 			if self.state.local_authority_id().map_or(false, |id| id == current_leader) {
 				if let Some(hash) = self.get_proposal_block() {
-					info!(target: "Hotstuff","~~ handle_vote. make proposal, substrate block hash {}", hash);
+					debug!(target: "Hotstuff","~~ handle_vote. make proposal, substrate block hash {}", hash);
 
 					let block = self.state.make_proposal(hash, None)?;
 					let proposal_message = ConsensusMessage::Propose(block.clone());
@@ -505,14 +505,14 @@ where
 	}
 
 	pub async fn handle_tc(&mut self, tc: &TC<B>) -> Result<(), HotstuffError> {
-		info!(target: "Hotstuff","~~ handle_tc. from network, self.view {}, tc.view {}",self.state.view(), tc.view);
+		debug!(target: "Hotstuff","~~ handle_tc. from network, self.view {}, tc.view {}",self.state.view(), tc.view);
 		self.state.verify_tc(tc)?;
 
 		self.advance_view(tc.view);
 		self.local_timer.reset();
 
 		if self.state.is_leader() {
-			info!(target: "Hotstuff","~~ handle_tc. leader make proposal valid tc, tc.view {}, self.view {}",tc.view, self.state.view());
+			debug!(target: "Hotstuff","~~ handle_tc. leader make proposal valid tc, tc.view {}, self.view {}",tc.view, self.state.view());
 			self.generate_proposal(None).await?;
 		}
 
@@ -522,7 +522,7 @@ where
 	pub async fn generate_proposal(&mut self, tc: Option<TC<B>>) -> Result<(), HotstuffError> {
 		match self.get_proposal_block() {
 			Some(hash) => {
-				info!(target: "Hotstuff","~~ generate_proposal. substrate block_hash:{}, self.view:{}",
+				debug!(target: "Hotstuff","~~ generate_proposal. substrate block_hash:{}, self.view:{}",
 					hash,
 					self.state.view(),
 				);
@@ -539,7 +539,7 @@ where
 				self.handle_proposal(&proposal).await?;
 			},
 			None => {
-				info!(target: "Hotstuff","~~ generate_proposal. can't get substrate block.")
+				debug!(target: "Hotstuff","~~ generate_proposal. can't get substrate block.")
 			},
 		}
 

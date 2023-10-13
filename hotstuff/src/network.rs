@@ -6,7 +6,7 @@ use std::{
 };
 
 use futures::prelude::*;
-use log::info;
+use log::debug;
 use sc_network::{
 	NetworkBlock, NetworkStateInfo, NetworkSyncForkRequest, ObservedRole, PeerId, ProtocolName,
 	SyncEventStream,
@@ -93,7 +93,7 @@ impl<Block: BlockT> GossipValidator<Block> {
 		match ConsensusMessage::<Block>::decode(&mut data) {
 			Ok(_) => Some(ConsensusMessage::<Block>::gossip_topic()),
 			Err(e) => {
-				info!("~~ GossipValidator decode data failed {}", e);
+				debug!("~~ GossipValidator decode data failed {}", e);
 				None
 			},
 		}

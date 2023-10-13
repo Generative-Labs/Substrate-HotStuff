@@ -249,7 +249,7 @@ impl<B: BlockT> Future for PendingFinalizeBlockQueue<B> {
 					}
 
 					if let Ok(mut pending) = self.inner.lock() {
-						log::info!(target: "Hotstuff", "*** push {}", notification.hash);
+						log::debug!(target: "Hotstuff", "*** push {}", notification.hash);
 						pending.push_back(BlockInfo {
 							hash: Some(notification.hash),
 							number: notification.header.number().clone(),
@@ -272,7 +272,7 @@ impl<B: BlockT> Future for PendingFinalizeBlockQueue<B> {
 								break
 							}
 							if let Some(b) = pending.pop_front() {
-								log::info!(target: "Hotstuff", "*** pop {}", b.hash.unwrap());
+								log::debug!(target: "Hotstuff", "*** pop {}", b.hash.unwrap());
 							}
 						}
 					},
