@@ -8,7 +8,6 @@ use sc_client_api::{
 	StorageProvider, TransactionFor,
 };
 use sc_consensus::BlockImport;
-use sc_utils::mpsc::{tracing_unbounded, TracingUnboundedReceiver};
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::{Error as ClientError, HeaderBackend, HeaderMetadata};
 use sp_consensus_hotstuff::AuthorityId;
@@ -78,7 +77,6 @@ pub struct LinkHalf<Block: BlockT, C, SC> {
 	pub client: Arc<C>,
 	pub select_chain: Option<PhantomData<SC>>,
 	pub(crate) persistent_data: aux_schema::PersistentData<Block>,
-	pub import_block_rx: TracingUnboundedReceiver<(Block::Hash, NumberFor<Block>)>,
 }
 
 impl<Block: BlockT, C, SC> LinkHalf<Block, C, SC> {
@@ -149,11 +147,8 @@ where
 		},
 	)?;
 
-	let (import_block_tx, import_block_rx) =
-		tracing_unbounded::<(Block::Hash, NumberFor<Block>)>("hotstuff_block_import_ch", 200);
-
 	Ok((
-		HotstuffBlockImport::new(client.clone(), import_block_tx),
-		LinkHalf { client, select_chain: None, persistent_data, import_block_rx },
+		HotstuffBlockImport::new(client.clone()),
+		LinkHalf { client, select_chain: None, persistent_data },
 	))
 }

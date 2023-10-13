@@ -1,27 +1,40 @@
-use std::{marker::PhantomData, sync::Arc};
+use std::{
+	collections::VecDeque,
+	marker::PhantomData,
+	ops::Add,
+	pin::Pin,
+	sync::{Arc, Mutex},
+	task::{Context, Poll},
+};
 
-use sc_client_api::Backend;
+use futures::{Future, StreamExt};
+use sc_client_api::{
+	client::{FinalityNotifications, ImportNotifications},
+	Backend,
+};
 use sc_consensus::{
 	BlockCheckParams, BlockImport, BlockImportParams, ImportResult, JustificationImport,
 };
 use sc_network::{PeerId, ReputationChange};
-use sc_utils::mpsc::TracingUnboundedSender;
 use sp_api::TransactionFor;
 use sp_blockchain::BlockStatus;
 use sp_consensus::Error as ConsensusError;
 use sp_runtime::{
-	traits::{Block as BlockT, Header as HeaderT, NumberFor},
+	generic::BlockId,
+	traits::{Block as BlockT, Header as HeaderT, NumberFor, One},
 	Justification,
 };
 
-use crate::client::ClientForHotstuff;
+use crate::{
+	client::ClientForHotstuff,
+	primitives::{HotstuffError, HotstuffError::*},
+};
 
 // TODO remove finalize_grandpa reference.
 
 // const LOG_TARGET: &str  = "hotstuff";
 pub struct HotstuffBlockImport<Backend, Block: BlockT, Client> {
 	inner: Arc<Client>,
-	block_import_sender: TracingUnboundedSender<(Block::Hash, NumberFor<Block>)>,
 	backend: PhantomData<Backend>,
 	_phantom: PhantomData<Block>,
 }
@@ -30,7 +43,6 @@ impl<Backend, Block: BlockT, Client> Clone for HotstuffBlockImport<Backend, Bloc
 	fn clone(&self) -> Self {
 		HotstuffBlockImport {
 			inner: self.inner.clone(),
-			block_import_sender: self.block_import_sender.clone(),
 			backend: PhantomData,
 			_phantom: PhantomData,
 		}
@@ -38,16 +50,8 @@ impl<Backend, Block: BlockT, Client> Clone for HotstuffBlockImport<Backend, Bloc
 }
 
 impl<Backend, Block: BlockT, Client> HotstuffBlockImport<Backend, Block, Client> {
-	pub fn new(
-		inner: Arc<Client>,
-		block_import_sender: TracingUnboundedSender<(Block::Hash, NumberFor<Block>)>,
-	) -> HotstuffBlockImport<Backend, Block, Client> {
-		HotstuffBlockImport {
-			inner,
-			block_import_sender,
-			backend: PhantomData,
-			_phantom: PhantomData,
-		}
+	pub fn new(inner: Arc<Client>) -> HotstuffBlockImport<Backend, Block, Client> {
+		HotstuffBlockImport { inner, backend: PhantomData, _phantom: PhantomData }
 	}
 }
 
@@ -101,13 +105,6 @@ where
 				Err(e) => return Err(ConsensusError::ClientImport(e.to_string())),
 			}
 		};
-
-		if imported_aux.is_new_best {
-			match self.block_import_sender.unbounded_send((hash, number)) {
-				Ok(_) => {},
-				Err(e) => return Err(ConsensusError::ClientImport(e.to_string())),
-			}
-		}
 
 		// TODO
 		Ok(ImportResult::Imported(imported_aux))
@@ -189,4 +186,100 @@ where
 pub(crate) struct PeerReport {
 	pub who: PeerId,
 	pub cost_benefit: ReputationChange,
+}
+
+#[derive(Clone, PartialEq, Eq)]
+pub struct BlockInfo<B: BlockT> {
+	pub hash: Option<B::Hash>,
+	pub number: <B::Header as HeaderT>::Number,
+}
+
+// A queue cache the bast block from the client.
+pub(crate) struct PendingFinalizeBlockQueue<B: BlockT> {
+	import_notification: ImportNotifications<B>,
+
+	// The finalize notification not guaranteed to be fired for every finalize block.
+	finalize_notification: FinalityNotifications<B>,
+
+	// A queue cache the block hash and block number which wait for finalize.
+	inner: Arc<Mutex<VecDeque<BlockInfo<B>>>>,
+}
+
+impl<B: BlockT> PendingFinalizeBlockQueue<B> {
+	pub fn new<BE: Backend<B>, C: ClientForHotstuff<B, BE>>(
+		client: Arc<C>,
+	) -> Result<Self, HotstuffError> {
+		let chain_info = client.info();
+		let mut block_number = chain_info.finalized_number.add(One::one());
+		let mut queue = VecDeque::new();
+
+		while block_number <= chain_info.best_number {
+			let block_hash = client
+				.block_hash_from_id(&BlockId::Number(block_number))
+				.map_err(|e| ClientError(e.to_string()))?;
+
+			queue.push_back((block_hash, block_number));
+			block_number += One::one();
+		}
+
+		Ok(Self {
+			import_notification: client.every_import_notification_stream(),
+			finalize_notification: client.finality_notification_stream(),
+			inner: Arc::new(Mutex::new(VecDeque::new())),
+		})
+	}
+
+	pub fn queue(&self) -> Arc<Mutex<VecDeque<BlockInfo<B>>>> {
+		self.inner.clone()
+	}
+}
+
+impl<B: BlockT> Unpin for PendingFinalizeBlockQueue<B> {}
+
+impl<B: BlockT> Future for PendingFinalizeBlockQueue<B> {
+	type Output = ();
+
+	fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+		loop {
+			match StreamExt::poll_next_unpin(&mut self.import_notification, cx) {
+				Poll::Ready(None) => break,
+				Poll::Ready(Some(notification)) => {
+					if !notification.is_new_best {
+						continue
+					}
+
+					if let Ok(mut pending) = self.inner.lock() {
+						log::info!(target: "Hotstuff", "*** push {}", notification.hash);
+						pending.push_back(BlockInfo {
+							hash: Some(notification.hash),
+							number: notification.header.number().clone(),
+						});
+					}
+				},
+				Poll::Pending => break,
+			}
+		}
+
+		loop {
+			match StreamExt::poll_next_unpin(&mut self.finalize_notification, cx) {
+				Poll::Ready(None) => break,
+				Poll::Ready(Some(notification)) =>
+					if let Ok(mut pending) = self.inner.lock() {
+						let finalized_number = notification.header.number();
+
+						while let Some(elem) = pending.front() {
+							if elem.number > *finalized_number {
+								break
+							}
+							if let Some(b) = pending.pop_front() {
+								log::info!(target: "Hotstuff", "*** pop {}", b.hash.unwrap());
+							}
+						}
+					},
+				Poll::Pending => break,
+			}
+		}
+
+		Poll::Pending
+	}
 }
