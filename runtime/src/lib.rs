@@ -415,8 +415,6 @@ impl_runtime_apis! {
 			tx: <Block as BlockT>::Extrinsic,
 			block_hash: <Block as BlockT>::Hash,
 		) -> TransactionValidity {
-			log::info!("sp_transaction_pool::BlockBuilder】 validate_transaction");
-
 			Executive::validate_transaction(source, tx, block_hash)
 		}
 	}
