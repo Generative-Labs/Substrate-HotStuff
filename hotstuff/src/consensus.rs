@@ -249,6 +249,7 @@ pub struct ConsensusWorker<
 	processing_block: Option<BlockInfo<B>>,
 	pending_finalize_queue: Arc<Mutex<VecDeque<BlockInfo<B>>>>,
 
+	proposal_hash_queue: Vec<B::Hash>,
 }
 
 impl<B, BE, C, N, S> ConsensusWorker<B, BE, C, N, S>
@@ -283,6 +284,7 @@ where
 			synchronizer,
 			processing_block: pending_block,
 			pending_finalize_queue,
+    		proposal_hash_queue: Vec::new(),
 		}
 	}
 
@@ -380,8 +382,10 @@ where
 			);
 
 			if self.state.is_leader() {
-				debug!(target: "Hotstuff","~~ handle_timeout. leader make after valid TC. self.view {}, TC.view {}", self.state.view(), timeout.view);
-
+				info!(target: "Hotstuff","~~ handle_timeout. leader propose. self.view {}, TC.view {}", 
+					self.state.view(),
+					timeout.view,
+				);
 				self.generate_proposal(Some(tc)).await?;
 			}
 		}
@@ -443,6 +447,8 @@ where
 		if let Some(vote) = self.state.make_vote(proposal) {
 			debug!(target: "Hotstuff","~~ handle proposal. make vote. vote.view {}", vote.view);
 
+			self.proposal_hash_queue.push(proposal.payload.block_hash);
+
 			self.processing_block = Some(BlockInfo {
 				hash: Some(proposal.payload.block_hash),
 				number: proposal.payload.block_number,
@@ -486,7 +492,27 @@ where
 			let current_leader = self.state.view_leader(self.state.view());
 			if self.state.local_authority_id().map_or(false, |id| id == current_leader) {
 				if let Some(payload) = self.get_proposal_payload() {
-					debug!(target: "Hotstuff","~~ handle_vote. make proposal, substrate block hash {}", payload);
+					info!(target: "Hotstuff","~~ handle_vote. make proposal. payload {}", payload);
+					debug!(target: "Hotstuff", "&& proposal_hash_queue {:#?}", self.proposal_hash_queue);
+
+					let mut count = 0;
+					for item in self.proposal_hash_queue.iter().rev(){
+						if !item.eq(&Self::empty_payload_hash()){
+							break;
+						}
+						count += 1;
+						if count == 2 && payload.block_hash.eq(&Self::empty_payload_hash()){
+							info!(target:"Hotstuff", "^^ already has 2 empty proposal, this empty not gossip");
+							return Ok(())
+						}
+					}
+
+					if self.proposal_hash_queue.len() > 2{
+						self.proposal_hash_queue.clear()
+					}
+
+					self.proposal_hash_queue.push(payload.block_hash);
+					debug!(target: "Hotstuff", "&& proposal_hash_queue {:#?}", self.proposal_hash_queue);
 
 					let proposal = self.state.make_proposal(payload, None)?;
 					let proposal_message = ConsensusMessage::Propose(proposal.clone());
@@ -526,7 +552,7 @@ where
 		self.local_timer.reset();
 
 		if self.state.is_leader() {
-			debug!(target: "Hotstuff","~~ handle_tc. leader make proposal valid tc, tc.view {}, self.view {}",tc.view, self.state.view());
+			info!(target: "Hotstuff","~~ handle_tc. leader make proposal valid tc, tc.view {}, self.view {}",tc.view, self.state.view());
 			self.generate_proposal(None).await?;
 		}
 
