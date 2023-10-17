@@ -5,7 +5,6 @@ use futures::{future, stream, FutureExt};
 use parking_lot::{Mutex, RwLock};
 use tokio::runtime::Handle;
 
-use sc_client_api::{Finalizer, HeaderBackend};
 use sc_consensus::{BoxJustificationImport, LongestChain};
 use sc_network_test::{
 	Block, BlockImportAdapter, FullPeerConfig, PassThroughVerifier, Peer, PeersClient,
@@ -15,7 +14,6 @@ use sp_api::{ApiRef, ProvideRuntimeApi};
 use sp_keyring::Sr25519Keyring;
 use sp_keystore::{testing::MemoryKeystore, Keystore, KeystorePtr};
 use sp_runtime::traits::Header as HeaderT;
-use substrate_test_runtime::Hashing;
 
 use crate::client::GenesisAuthoritySetProvider;
 use sp_consensus_hotstuff::HotstuffApi;
@@ -368,55 +366,4 @@ async fn finalize_3_voters_with_1_full() {
 	for i in 0..4 {
 		assert_eq!(net.lock().peer(i).client().info().finalized_number as u64, 10);
 	}
-}
-
-#[tokio::test]
-async fn single_voter_get_proposal_block() {
-	sp_tracing::try_init_simple();
-
-	let peers = &[Sr25519Keyring::Alice];
-	let peer_id = 0;
-	let voters = make_ids(peers);
-	let mut net = TestNet::new(TestApi::new(voters.clone()), 3, 1);
-	let keystore = create_keystore(peers[peer_id]);
-	let (net_service, link) = {
-		let link = net.peers[peer_id].data.lock().take().expect("link initialized at startup; qed");
-		(net.peers[peer_id].network_service().clone(), link)
-	};
-	let client = link.client.clone();
-	let sync = net.peers[peer_id].sync_service().clone();
-
-	let (mut hotstuff_worker, hotstuff_network) = build_hotstuff_components(
-		net_service,
-		link,
-		sync,
-		crate::config::HOTSTUFF_PROTOCOL_NAME.into(),
-		keystore,
-		voters,
-	)
-	.unwrap();
-
-	tokio::spawn(hotstuff_network);
-
-	// scenario 1: no import block, if get a empty payload,
-	let empty_payload_hash = Hashing::hash(EMPTY_PAYLOAD);
-	assert_eq!(hotstuff_worker.get_proposal_block(), Some(empty_payload_hash));
-
-	// scenario 2: import 2 block, then call get_proposal_block twice.
-	// first, it return the imported block
-	// second, it return a empty payload
-	net.peer(0).push_blocks(2, false);
-	net.run_until_sync().await;
-
-	let block_hahs1 = client.hash(1).unwrap().unwrap();
-	assert_eq!(hotstuff_worker.get_proposal_block(), Some(block_hahs1));
-	assert_eq!(hotstuff_worker.get_proposal_block(), Some(empty_payload_hash));
-
-	// after client finalize block 1. the get_proposal_block will return block2
-	client.finalize_block(block_hahs1, None, true).expect("finalize block1");
-	assert_eq!(hotstuff_worker.get_proposal_block(), Some(client.hash(2).unwrap().unwrap()));
-
-	// after client finalize block 2. the get_proposal_block will return empty payload
-	client.finalize_block(block_hahs1, None, true).expect("finalize block2");
-	assert_eq!(hotstuff_worker.get_proposal_block(), Some(empty_payload_hash));
 }

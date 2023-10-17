@@ -27,10 +27,13 @@ fn generate_proposal_with_block(
 	block: &TestBlock,
 	view: ViewNumber,
 ) -> Proposal<TestBlock> {
+	let payload =
+		Payload::<TestBlock> { block_hash: block.hash(), block_number: block.header.number };
+
 	let mut proposal = Proposal::<TestBlock>::new(
 		QC::<TestBlock>::default(),
 		None,
-		block.hash(),
+		payload,
 		view,
 		signer.clone(),
 		None,
@@ -132,13 +135,18 @@ fn test_proposal_verify() {
 		result: Result<(), HotstuffError>,
 	}
 
+	let payload = Payload::<TestBlock> {
+		block_hash: test_block.hash(),
+		block_number: test_block.header.number,
+	};
+
 	let cases = [
 		TestCase {
 			describe: "Case: Null signature".to_string(),
 			proposal: Proposal::<TestBlock>::new(
 				QC::<TestBlock>::default(),
 				None,
-				test_block.hash(),
+				payload.clone(),
 				view,
 				authorities[0].clone(),
 				None,
@@ -150,7 +158,7 @@ fn test_proposal_verify() {
 			proposal: Proposal::<TestBlock>::new(
 				QC::<TestBlock>::default(),
 				None,
-				test_block.hash(),
+				payload.clone(),
 				view,
 				authorities[1].clone(),
 				Some(
@@ -168,7 +176,7 @@ fn test_proposal_verify() {
 			proposal: Proposal::<TestBlock>::new(
 				QC::<TestBlock>::default(),
 				None,
-				test_block.hash(),
+				payload,
 				view,
 				pks[3].clone(),
 				None,
@@ -583,7 +591,10 @@ fn qc_from_votes_should_work() {
 	let proposal = Proposal::<TestBlock> {
 		qc: Default::default(),
 		tc: None,
-		payload: test_block.hash(),
+		payload: Payload::<TestBlock> {
+			block_hash: test_block.hash(),
+			block_number: *test_block.header.number(),
+		},
 		view: view_number,
 		author: authorities[0].clone(),
 		signature: None,

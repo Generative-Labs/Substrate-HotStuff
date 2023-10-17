@@ -185,7 +185,7 @@ pub(crate) struct PeerReport {
 	pub cost_benefit: ReputationChange,
 }
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct BlockInfo<B: BlockT> {
 	pub hash: Option<B::Hash>,
 	pub number: <B::Header as HeaderT>::Number,

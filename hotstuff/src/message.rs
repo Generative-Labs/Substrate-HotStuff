@@ -1,4 +1,4 @@
-use std::{collections::HashSet, marker::PhantomData};
+use std::{collections::HashSet, fmt, marker::PhantomData};
 
 use parity_scale_codec::{Decode, Encode};
 use sp_core::Pair;
@@ -80,6 +80,19 @@ impl<Block: BlockT> PartialEq for QC<Block> {
 	}
 }
 
+#[derive(Debug, Copy, Clone, Encode, Decode)]
+pub struct Payload<Block: BlockT> {
+	pub block_hash: Block::Hash,
+	pub block_number: <Block::Header as HeaderT>::Number,
+}
+
+impl<Block: BlockT> fmt::Display for Payload<Block> {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		write!(f, "{{ block_hash: {} ", self.block_hash)?;
+		write!(f, "  block_number: {} }}", self.block_number)
+	}
+}
+
 // Hotstuff Proposal
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct Proposal<Block: BlockT> {
@@ -87,7 +100,7 @@ pub struct Proposal<Block: BlockT> {
 	pub qc: QC<Block>,
 	pub tc: Option<TC<Block>>,
 	// payload represents the block hash in the blockchain that will be finalized.
-	pub payload: Block::Hash,
+	pub payload: Payload<Block>,
 	pub view: ViewNumber,
 	// The authority id of current hotstuff block author,
 	// which is not the origin block producer.
@@ -100,12 +113,12 @@ impl<Block: BlockT> Proposal<Block> {
 	pub fn new(
 		qc: QC<Block>,
 		tc: Option<TC<Block>>,
-		hash: Block::Hash,
+		payload: Payload<Block>,
 		view: ViewNumber,
 		author: AuthorityId,
 		signature: Option<AuthoritySignature>,
 	) -> Self {
-		Proposal { qc, tc, payload: hash, view, author, signature }
+		Proposal { qc, tc, payload, view, author, signature }
 	}
 
 	pub fn parent_hash(&self) -> Block::Hash {

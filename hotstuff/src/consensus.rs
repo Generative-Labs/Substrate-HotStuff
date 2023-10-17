@@ -10,7 +10,7 @@ use std::{
 use async_recursion::async_recursion;
 use futures::{channel::mpsc::Receiver as Recv, Future, StreamExt};
 
-use log::{debug, error};
+use log::{debug, error, info, trace};
 use parity_scale_codec::{Decode, Encode};
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 
@@ -30,7 +30,7 @@ use crate::{
 	aggregator::Aggregator,
 	client::{ClientForHotstuff, LinkHalf},
 	import::{BlockInfo, PendingFinalizeBlockQueue},
-	message::{ConsensusMessage, ConsensusMessage::*, Proposal, Timeout, Vote, QC, TC},
+	message::{ConsensusMessage, ConsensusMessage::*, Payload, Proposal, Timeout, Vote, QC, TC},
 	network::{HotstuffNetworkBridge, Network as NetworkT, Syncing as SyncingT},
 	primitives::{HotstuffError, HotstuffError::*, ViewNumber},
 	synchronizer::{Synchronizer, Timer},
@@ -104,7 +104,7 @@ impl<B: BlockT> ConsensusState<B> {
 
 	pub fn make_proposal(
 		&self,
-		payload: B::Hash,
+		payload: Payload<B>,
 		tc: Option<TC<B>>,
 	) -> Result<Proposal<B>, HotstuffError> {
 		let author_id = self.local_authority_id().ok_or(NotAuthority)?;
@@ -248,6 +248,7 @@ pub struct ConsensusWorker<
 
 	processing_block: Option<BlockInfo<B>>,
 	pending_finalize_queue: Arc<Mutex<VecDeque<BlockInfo<B>>>>,
+
 }
 
 impl<B, BE, C, N, S> ConsensusWorker<B, BE, C, N, S>
@@ -333,10 +334,11 @@ where
 		let timeout = self.state.make_timeout()?;
 		let message = ConsensusMessage::Timeout(timeout.clone());
 
-		self.network
-			.gossip_engine
-			.lock()
-			.register_gossip_message(ConsensusMessage::<B>::gossip_topic(), message.encode());
+		self.network.gossip_engine.lock().gossip_message(
+			ConsensusMessage::<B>::gossip_topic(),
+			message.encode(),
+			false,
+		);
 
 		self.handle_timeout(&timeout).await
 	}
@@ -353,7 +355,7 @@ where
 
 		self.handle_qc(&timeout.high_qc);
 
-		self.reset_processing_block();
+		// self.reset_processing_block();
 
 		if let Some(tc) = self.state.add_timeout(timeout)? {
 			if tc.view >= self.state.view() {
@@ -370,10 +372,12 @@ where
 			// and is broadcasted into the network. Nodes that voted for this Timeout will consider
 			// it as "expired."
 			let message = ConsensusMessage::TC(tc.clone());
-			self.network
-				.gossip_engine
-				.lock()
-				.register_gossip_message(ConsensusMessage::<B>::gossip_topic(), message.encode());
+
+			self.network.gossip_engine.lock().gossip_message(
+				ConsensusMessage::<B>::gossip_topic(),
+				message.encode(),
+				true,
+			);
 
 			if self.state.is_leader() {
 				debug!(target: "Hotstuff","~~ handle_timeout. leader make after valid TC. self.view {}, TC.view {}", self.state.view(), timeout.view);
@@ -387,7 +391,7 @@ where
 
 	#[async_recursion]
 	pub async fn handle_proposal(&mut self, proposal: &Proposal<B>) -> Result<(), HotstuffError> {
-		debug!(target: "Hotstuff","~~ handle_proposal. self.view {}, proposal[ view:{},  payload:{}, author {}, digest {}]",
+		info!(target: "Hotstuff","~~ handle_proposal. self.view {}, proposal[ view:{},  payload:{}, author {}, digest {}]",
 			self.state.view(),
 			proposal.view,
 			proposal.payload,
@@ -419,11 +423,11 @@ where
 						debug!(target: "Hotstuff","~~ handle_proposal. block {} can finalize", grandpa.payload);
 
 						// TODO check weather this block has already finalize.
-						if grandpa.payload != Self::empty_payload() &&
-							grandpa.payload != self.client.info().finalized_hash
+						if grandpa.payload.block_hash != Self::empty_payload_hash() &&
+							grandpa.payload.block_hash != self.client.info().finalized_hash
 						{
 							self.client
-								.finalize_block(grandpa.payload, None, true)
+								.finalize_block(grandpa.payload.block_hash, None, true)
 								.map_err(|e| FinalizeBlock(e.to_string()))?;
 						}
 					}
@@ -439,6 +443,11 @@ where
 		if let Some(vote) = self.state.make_vote(proposal) {
 			debug!(target: "Hotstuff","~~ handle proposal. make vote. vote.view {}", vote.view);
 
+			self.processing_block = Some(BlockInfo {
+				hash: Some(proposal.payload.block_hash),
+				number: proposal.payload.block_number,
+			});
+
 			let next_leader_id = self.state.view_leader(self.state.view() + 1);
 
 			// If the current authority is the leader of the next view, it directly processes the
@@ -448,9 +457,10 @@ where
 			} else {
 				let vote_message = ConsensusMessage::Vote(vote);
 
-				self.network.gossip_engine.lock().register_gossip_message(
+				self.network.gossip_engine.lock().gossip_message(
 					ConsensusMessage::<B>::gossip_topic(),
 					vote_message.encode(),
+					true,
 				);
 			}
 		}
@@ -459,7 +469,7 @@ where
 	}
 
 	pub async fn handle_vote(&mut self, vote: &Vote<B>) -> Result<(), HotstuffError> {
-		debug!(target: "Hotstuff","~~ handle_vote. self.view {}, vote.view {}, vote.author {}, vote.hash {}",
+		info!(target: "Hotstuff","~~ handle_vote. self.view {}, vote.view {}, vote.author {}, vote.hash {}",
 			self.state.view(),
 			vote.view,
 			vote.voter,
@@ -475,15 +485,16 @@ where
 			debug!(target: "Hotstuff","~~ handle_vote. get QC. after handle qc, self view {}", self.state.view());
 			let current_leader = self.state.view_leader(self.state.view());
 			if self.state.local_authority_id().map_or(false, |id| id == current_leader) {
-				if let Some(hash) = self.get_proposal_block() {
-					debug!(target: "Hotstuff","~~ handle_vote. make proposal, substrate block hash {}", hash);
+				if let Some(payload) = self.get_proposal_payload() {
+					debug!(target: "Hotstuff","~~ handle_vote. make proposal, substrate block hash {}", payload);
 
-					let block = self.state.make_proposal(hash, None)?;
-					let proposal_message = ConsensusMessage::Propose(block.clone());
+					let proposal = self.state.make_proposal(payload, None)?;
+					let proposal_message = ConsensusMessage::Propose(proposal.clone());
 
-					self.network.gossip_engine.lock().register_gossip_message(
+					self.network.gossip_engine.lock().gossip_message(
 						ConsensusMessage::<B>::gossip_topic(),
 						proposal_message.encode(),
+						true,
 					);
 
 					// Inform oneself to handle the proposal.
@@ -491,7 +502,7 @@ where
 					// .send(proposal_message)
 					// .await
 					// .map_err(|e| Other(e.to_string()))?;
-					self.handle_proposal(&block).await?;
+					self.handle_proposal(&proposal).await?;
 				}
 			}
 		}
@@ -523,19 +534,20 @@ where
 	}
 
 	pub async fn generate_proposal(&mut self, tc: Option<TC<B>>) -> Result<(), HotstuffError> {
-		match self.get_proposal_block() {
-			Some(hash) => {
-				debug!(target: "Hotstuff","~~ generate_proposal. substrate block_hash:{}, self.view:{}",
-					hash,
+		match self.get_proposal_payload() {
+			Some(payload) => {
+				debug!(target: "Hotstuff","~~ generate_proposal. payload :{}, self.view:{}",
+					payload,
 					self.state.view(),
 				);
 
-				let proposal = self.state.make_proposal(hash, tc)?;
+				let proposal = self.state.make_proposal(payload, tc)?;
 				let proposal_message = ConsensusMessage::Propose(proposal.clone());
 
-				self.network.gossip_engine.lock().register_gossip_message(
+				self.network.gossip_engine.lock().gossip_message(
 					ConsensusMessage::<B>::gossip_topic(),
 					proposal_message.encode(),
+					true,
 				);
 
 				// TODO Inform oneself to handle the proposal by channel?
@@ -549,42 +561,61 @@ where
 		Ok(())
 	}
 
-	// `get_proposal_block` defines a method for obtaining a Substrate client block for proposal.
-	// The `ConsensusWorker` maintains a `VecDeque` to store the imported blocks from the client.
-	// When the `ConsensusWorker` receives a finalized block notification, it removes finalized
-	// blocks from the `VecDeque`. The `processing_block` indicates the current proposed block,
-	// initially set to `None`. When a Consensus Timeout occurs, it is also set to `None`.
-	// If there is no timeout and a proposal is being made, it searches for blocks in the `VecDeque`
-	// that have numbers greater than the `processing_block`.
-	// If no blocks greater than the `processing_block` are found in the `VecDeque`,
-	// it proposes an empty block.
-	pub(crate) fn get_proposal_block(&mut self) -> Option<B::Hash> {
+	pub(crate) fn get_proposal_payload(&mut self) -> Option<Payload<B>> {
 		if let Ok(queue) = self.pending_finalize_queue.lock() {
 			if let Some(processing) = self.processing_block.as_ref() {
-				if processing.number > self.client.info().finalized_number {
-					return Some(Self::empty_payload())
+				let finalized_number = self.client.info().finalized_number;
+				if processing.number > finalized_number {
+					trace!(target: "Hotstuff", "~~ get_proposal_payload. return a empty payload. processing: {}, finalized:{}",
+						processing.number,
+						finalized_number);
+
+					return Some(Payload {
+						block_hash: Self::empty_payload_hash(),
+						block_number: processing.number,
+					})
 				}
 
-				match queue.iter().find(|elem| elem.number > processing.number) {
-					Some(find) => self.processing_block = Some(find.clone()),
-					None => return Some(Self::empty_payload()),
+				if let Some(find) = queue.iter().find(|elem| elem.number > finalized_number) {
+					trace!(target: "Hotstuff", "~~ get_proposal_payload. get from queue. processing:{}, finalized:{}, find {}",
+						processing.number,
+						finalized_number,
+						find.number,
+					);
+
+					self.processing_block = Some(find.clone());
+					return Some(Payload {
+						block_hash: find.hash.unwrap_or(Self::empty_payload_hash()),
+						block_number: find.number,
+					})
+				} else {
+					trace!(target: "Hotstuff", "~~ get_proposal_payload. get from queue failed: processing{}, finalized:{}",
+						processing.number,
+						finalized_number,
+					);
+
+					return Some(Payload {
+						block_hash: Self::empty_payload_hash(),
+						block_number: processing.number,
+					})
 				}
 			} else {
-				self.processing_block = queue.front().cloned()
-			}
+				match queue.front().cloned() {
+					Some(info) => {
+						trace!(target: "Hotstuff", "~~ get_proposal_payload. processing is None,get from queue {}", info.number);
 
-			if let Some(b) = self.processing_block.as_ref() {
-				return b.hash
+						self.processing_block = Some(info.clone());
+						return Some(Payload::<B> {
+							block_hash: info.hash.unwrap_or(Self::empty_payload_hash()),
+							block_number: info.number,
+						})
+					},
+					None => return None,
+				}
 			}
-
-			return Some(Self::empty_payload())
 		}
 
 		None
-	}
-
-	fn reset_processing_block(&mut self) {
-		self.processing_block = None
 	}
 
 	fn advance_view(&mut self, view: ViewNumber) {
@@ -592,7 +623,7 @@ where
 		self.network.set_view(self.state.view());
 	}
 
-	pub(crate) fn empty_payload() -> B::Hash {
+	pub(crate) fn empty_payload_hash() -> B::Hash {
 		<<B::Header as HeaderT>::Hashing as HashT>::hash(EMPTY_PAYLOAD)
 	}
 }
