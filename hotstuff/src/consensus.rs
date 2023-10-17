@@ -328,7 +328,7 @@ where
 	}
 
 	pub async fn handle_local_timer(&mut self) -> Result<(), HotstuffError> {
-		debug!(target: "Hotstuff","~~ handle_local_timer. self.view {}", self.state.view());
+		info!(target: "Hotstuff","$L$ handle_local_timer. self.view {}", self.state.view());
 
 		self.local_timer.reset();
 		self.state.increase_last_voted_view();
@@ -382,7 +382,7 @@ where
 			);
 
 			if self.state.is_leader() {
-				info!(target: "Hotstuff","~~ handle_timeout. leader propose. self.view {}, TC.view {}", 
+				info!(target: "Hotstuff","@L@ handle_timeout. leader propose. self.view {}, TC.view {}", 
 					self.state.view(),
 					timeout.view,
 				);
@@ -430,6 +430,7 @@ where
 						if grandpa.payload.block_hash != Self::empty_payload_hash() &&
 							grandpa.payload.block_hash != self.client.info().finalized_hash
 						{
+							info!(target: "Hotstuff","^^_^^ handle_proposal. block {} can finalize", grandpa.payload);
 							self.client
 								.finalize_block(grandpa.payload.block_hash, None, true)
 								.map_err(|e| FinalizeBlock(e.to_string()))?;
@@ -475,7 +476,7 @@ where
 	}
 
 	pub async fn handle_vote(&mut self, vote: &Vote<B>) -> Result<(), HotstuffError> {
-		info!(target: "Hotstuff","~~ handle_vote. self.view {}, vote.view {}, vote.author {}, vote.hash {}",
+		debug!(target: "Hotstuff","~~ handle_vote. self.view {}, vote.view {}, vote.author {}, vote.hash {}",
 			self.state.view(),
 			vote.view,
 			vote.voter,
@@ -493,7 +494,7 @@ where
 			if self.state.local_authority_id().map_or(false, |id| id == current_leader) {
 				if let Some(payload) = self.get_proposal_payload() {
 					info!(target: "Hotstuff","~~ handle_vote. make proposal. payload {}", payload);
-					debug!(target: "Hotstuff", "&& proposal_hash_queue {:#?}", self.proposal_hash_queue);
+					debug!(target: "Hotstuff", "&-& proposal_hash_queue {:#?}", self.proposal_hash_queue);
 
 					let mut count = 0;
 					for item in self.proposal_hash_queue.iter().rev(){
@@ -501,18 +502,18 @@ where
 							break;
 						}
 						count += 1;
-						if count == 2 && payload.block_hash.eq(&Self::empty_payload_hash()){
-							info!(target:"Hotstuff", "^^ already has 2 empty proposal, this empty not gossip");
+						if count == 3 && payload.block_hash.eq(&Self::empty_payload_hash()){
+							info!(target:"Hotstuff", "^^ already has 3 empty proposal, this empty not gossip");
 							return Ok(())
 						}
 					}
 
-					if self.proposal_hash_queue.len() > 2{
+					if self.proposal_hash_queue.len() > 10{
 						self.proposal_hash_queue.clear()
 					}
 
 					self.proposal_hash_queue.push(payload.block_hash);
-					debug!(target: "Hotstuff", "&& proposal_hash_queue {:#?}", self.proposal_hash_queue);
+					debug!(target: "Hotstuff", "&*& proposal_hash_queue {:#?}", self.proposal_hash_queue);
 
 					let proposal = self.state.make_proposal(payload, None)?;
 					let proposal_message = ConsensusMessage::Propose(proposal.clone());
