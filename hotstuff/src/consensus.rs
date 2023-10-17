@@ -386,6 +386,7 @@ where
 					self.state.view(),
 					timeout.view,
 				);
+				self.processing_block = None;
 				self.generate_proposal(Some(tc)).await?;
 			}
 		}
@@ -438,7 +439,7 @@ where
 					}
 					Ok(())
 				}) {
-			debug!(target: "Hotstuff", "~~ handle_proposal. has error when finalize block {:#?}", e);
+			info!(target: "Hotstuff", "~~ handle_proposal. has error when finalize block {:#?}", e);
 		}
 
 		if proposal.view != self.state.view() {
@@ -551,6 +552,7 @@ where
 
 		self.advance_view(tc.view);
 		self.local_timer.reset();
+		self.processing_block = None;
 
 		if self.state.is_leader() {
 			info!(target: "Hotstuff","~~ handle_tc. leader make proposal valid tc, tc.view {}, self.view {}",tc.view, self.state.view());
@@ -629,7 +631,7 @@ where
 			} else {
 				match queue.front().cloned() {
 					Some(info) => {
-						trace!(target: "Hotstuff", "~~ get_proposal_payload. processing is None,get from queue {}", info.number);
+						info!(target: "Hotstuff", "Q-Q get_proposal_payload. processing is None,get from queue {}", info.number);
 
 						self.processing_block = Some(info.clone());
 						return Some(Payload::<B> {
