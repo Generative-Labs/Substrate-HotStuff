@@ -1,6 +1,7 @@
 use std::{
 	cmp::max,
 	collections::VecDeque,
+	env,
 	pin::Pin,
 	sync::{Arc, Mutex},
 	task::{Context, Poll},
@@ -9,7 +10,7 @@ use std::{
 use async_recursion::async_recursion;
 use futures::{channel::mpsc::Receiver as Recv, Future, StreamExt};
 
-use log::{error, debug};
+use log::{debug, error};
 use parity_scale_codec::{Decode, Encode};
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 
@@ -709,12 +710,19 @@ where
 
 	let queue = PendingFinalizeBlockQueue::<B>::new(client.clone()).expect("error");
 
+	let mut local_timer_duration = 3000;
+	if let Ok(value) = env::var("HOTSTUFF_DURATION") {
+		if let Ok(duration) = value.parse::<u64>() {
+			local_timer_duration = duration;
+		}
+	}
+
 	let consensus_worker = ConsensusWorker::<B, BE, C, N, S>::new(
 		consensus_state,
 		client,
 		network.clone(),
 		synchronizer,
-		3000,
+		local_timer_duration,
 		consensus_msg_tx.clone(),
 		consensus_msg_rx,
 		queue.queue(),

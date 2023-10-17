@@ -100,7 +100,9 @@ pub fn local_testnet_config() -> Result<ChainSpec, String> {
 					hotstuff_authority_keys_from_seed("Alice"),
 					hotstuff_authority_keys_from_seed("Bob"),
 					hotstuff_authority_keys_from_seed("Charlie"),
+					hotstuff_authority_keys_from_seed("Dave"),
 					hotstuff_authority_keys_from_seed("Eve"),
+					hotstuff_authority_keys_from_seed("Ferdie"),
 				],
 				// Sudo account
 				get_account_id_from_seed::<sr25519::Public>("Alice"),
