@@ -149,9 +149,26 @@ impl<B: BlockT> sc_network_gossip::Validator<B> for GossipValidator<B> {
 	fn message_allowed<'a>(
 		&'a self,
 	) -> Box<dyn FnMut(&PeerId, MessageIntent, &B::Hash, &[u8]) -> bool + 'a> {
-		Box::new(move |_who, _intent, _topic, _data| {
-			// println!("message_allowed who: {}, {:#?}", who, data);
-			true
+		Box::new(move |_who, _intent, topic,mut data| {
+			if !topic.eq(&ConsensusMessage::<B>::gossip_topic()){
+				return false
+			}
+
+			if let Ok(message) = ConsensusMessage::<B>::decode(&mut data) {
+				let message_vew = match message {
+					ConsensusMessage::Propose(proposal) => proposal.view,
+					ConsensusMessage::Vote(vote) => vote.view,
+					ConsensusMessage::Timeout(timeout) => timeout.view,
+					ConsensusMessage::TC(tc) => tc.view,
+					_ => 0,
+				};
+
+				if message_vew > 2u64 && message_vew < self.get_view() - 1 {
+					return false
+				}
+				return true
+			}
+			false
 		})
 	}
 }

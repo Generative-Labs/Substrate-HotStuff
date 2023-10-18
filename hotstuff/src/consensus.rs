@@ -378,7 +378,7 @@ where
 			self.network.gossip_engine.lock().gossip_message(
 				ConsensusMessage::<B>::gossip_topic(),
 				message.encode(),
-				true,
+				false,
 			);
 
 			if self.state.is_leader() {
@@ -468,7 +468,7 @@ where
 				self.network.gossip_engine.lock().gossip_message(
 					ConsensusMessage::<B>::gossip_topic(),
 					vote_message.encode(),
-					true,
+					false,
 				);
 			}
 		}
@@ -522,7 +522,7 @@ where
 					self.network.gossip_engine.lock().gossip_message(
 						ConsensusMessage::<B>::gossip_topic(),
 						proposal_message.encode(),
-						true,
+						false,
 					);
 
 					// Inform oneself to handle the proposal.
@@ -576,7 +576,7 @@ where
 				self.network.gossip_engine.lock().gossip_message(
 					ConsensusMessage::<B>::gossip_topic(),
 					proposal_message.encode(),
-					true,
+					false,
 				);
 
 				// TODO Inform oneself to handle the proposal by channel?
