@@ -503,13 +503,13 @@ where
 							break;
 						}
 						count += 1;
-						if count == 3 && payload.block_hash.eq(&Self::empty_payload_hash()){
+						if count == 2 && payload.block_hash.eq(&Self::empty_payload_hash()){
 							info!(target:"Hotstuff", "^^ already has 3 empty proposal, this empty not gossip");
 							return Ok(())
 						}
 					}
 
-					if self.proposal_hash_queue.len() > 10{
+					if self.proposal_hash_queue.len() > 3{
 						self.proposal_hash_queue.clear()
 					}
 

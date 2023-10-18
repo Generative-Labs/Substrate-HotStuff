@@ -6,7 +6,6 @@ use std::{
 };
 
 use futures::prelude::*;
-use log::debug;
 use sc_network::{
 	NetworkBlock, NetworkStateInfo, NetworkSyncForkRequest, ObservedRole, PeerId, ProtocolName,
 	SyncEventStream,
@@ -88,16 +87,6 @@ impl<Block: BlockT> GossipValidator<Block> {
 		let view = self.view.read();
 		*view
 	}
-
-	pub fn do_validate(&self, mut data: &[u8]) -> Option<Block::Hash> {
-		match ConsensusMessage::<Block>::decode(&mut data) {
-			Ok(_) => Some(ConsensusMessage::<Block>::gossip_topic()),
-			Err(e) => {
-				debug!("~~ GossipValidator decode data failed {}", e);
-				None
-			},
-		}
-	}
 }
 
 impl<B: BlockT> sc_network_gossip::Validator<B> for GossipValidator<B> {
@@ -117,12 +106,23 @@ impl<B: BlockT> sc_network_gossip::Validator<B> for GossipValidator<B> {
 		&self,
 		_context: &mut dyn ValidatorContext<B>,
 		_sender: &PeerId,
-		data: &[u8],
+		mut data: &[u8],
 	) -> ValidationResult<B::Hash> {
-		match self.do_validate(data) {
-			Some(topic) => ValidationResult::ProcessAndKeep(topic),
-			None => ValidationResult::Discard,
+		if let Ok(message) = ConsensusMessage::<B>::decode(&mut data) {
+			let message_vew = match message {
+				ConsensusMessage::Propose(proposal) => proposal.view,
+				ConsensusMessage::Vote(vote) => vote.view,
+				ConsensusMessage::Timeout(timeout) => timeout.view,
+				ConsensusMessage::TC(tc) => tc.view,
+				_ => 0,
+			};
+
+			if message_vew < self.get_view() {
+				return ValidationResult::Discard
+			}
+			return ValidationResult::ProcessAndKeep(ConsensusMessage::<B>::gossip_topic())
 		}
+		ValidationResult::Discard
 	}
 
 	/// Produce a closure for validating messages on a given topic.
@@ -137,7 +137,7 @@ impl<B: BlockT> sc_network_gossip::Validator<B> for GossipValidator<B> {
 					_ => 0,
 				};
 
-				if message_vew > 2u64 && message_vew < self.get_view() - 1 {
+				if message_vew < self.get_view() {
 					return true
 				}
 			}
@@ -163,7 +163,7 @@ impl<B: BlockT> sc_network_gossip::Validator<B> for GossipValidator<B> {
 					_ => 0,
 				};
 
-				if message_vew > 2u64 && message_vew < self.get_view() - 1 {
+				if message_vew < self.get_view() {
 					return false
 				}
 				return true
