@@ -18,6 +18,7 @@ use sc_client_api::{Backend, CallExecutor};
 use sc_network::types::ProtocolName;
 use sc_network_gossip::TopicNotification;
 use sp_application_crypto::AppCrypto;
+use sp_blockchain::BlockStatus;
 use sp_consensus_hotstuff::{AuthorityId, AuthorityList, AuthoritySignature, HOTSTUFF_KEY_TYPE};
 use sp_core::{crypto::ByteArray, traits::CallContext};
 use sp_keystore::KeystorePtr;
@@ -241,6 +242,7 @@ pub struct ConsensusWorker<
 
 	network: HotstuffNetworkBridge<B, N, S>,
 	client: Arc<C>,
+	sync: S,
 	local_timer: Timer,
 	synchronizer: Synchronizer<B, BE, C>,
 	_consensus_msg_tx: Sender<ConsensusMessage<B>>,
@@ -265,6 +267,7 @@ where
 	pub fn new(
 		consensus_state: ConsensusState<B>,
 		client: Arc<C>,
+		sync: S,
 		network: HotstuffNetworkBridge<B, N, S>,
 		synchronizer: Synchronizer<B, BE, C>,
 		local_timer_duration: u64,
@@ -281,10 +284,11 @@ where
 			_consensus_msg_tx: consensus_msg_tx,
 			consensus_msg_rx,
 			client,
+			sync,
 			synchronizer,
 			processing_block: pending_block,
 			pending_finalize_queue,
-    		proposal_hash_queue: Vec::new(),
+			proposal_hash_queue: Vec::new(),
 		}
 	}
 
@@ -382,7 +386,7 @@ where
 			);
 
 			if self.state.is_leader() {
-				info!(target: "Hotstuff","@L@ handle_timeout. leader propose. self.view {}, TC.view {}", 
+				info!(target: "Hotstuff","@L@ handle_timeout. leader propose. self.view {}, TC.view {}",
 					self.state.view(),
 					timeout.view,
 				);
@@ -403,6 +407,22 @@ where
 			proposal.author,
 			proposal.digest(),
 		);
+
+		if !proposal.payload.block_hash.eq(&Self::empty_payload_hash()){
+			match self.client.status(proposal.payload.block_hash) {
+				Ok(block_status) =>
+					if BlockStatus::Unknown == block_status {
+						info!(target:"Hotstuff", "#^# unknown proposal payload {}", proposal.payload);
+						self.sync.set_sync_fork_request(
+							vec![],
+							proposal.payload.block_hash,
+							proposal.payload.block_number,
+						);
+						return Ok(())
+					},
+				Err(e) => return Err(ClientError(e.to_string())),
+			}
+		}
 
 		self.state.verify_proposal(proposal)?;
 
@@ -484,6 +504,7 @@ where
 			vote.proposal_hash,
 		);
 
+		// TODO check proposal is in local. If not exist, sync from network.
 		self.state.verify_vote(vote)?;
 
 		if let Some(qc) = self.state.add_vote(vote)? {
@@ -498,18 +519,18 @@ where
 					debug!(target: "Hotstuff", "&-& proposal_hash_queue {:#?}", self.proposal_hash_queue);
 
 					let mut count = 0;
-					for item in self.proposal_hash_queue.iter().rev(){
-						if !item.eq(&Self::empty_payload_hash()){
-							break;
+					for item in self.proposal_hash_queue.iter().rev() {
+						if !item.eq(&Self::empty_payload_hash()) {
+							break
 						}
 						count += 1;
-						if count == 2 && payload.block_hash.eq(&Self::empty_payload_hash()){
+						if count == 2 && payload.block_hash.eq(&Self::empty_payload_hash()) {
 							info!(target:"Hotstuff", "^^ already has 3 empty proposal, this empty not gossip");
 							return Ok(())
 						}
 					}
 
-					if self.proposal_hash_queue.len() > 3{
+					if self.proposal_hash_queue.len() > 3 {
 						self.proposal_hash_queue.clear()
 					}
 
@@ -780,6 +801,7 @@ where
 	let consensus_worker = ConsensusWorker::<B, BE, C, N, S>::new(
 		consensus_state,
 		client,
+		sync,
 		network.clone(),
 		synchronizer,
 		local_timer_duration,

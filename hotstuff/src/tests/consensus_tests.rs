@@ -213,6 +213,7 @@ where
 	let consensus_worker = ConsensusWorker::<B, BE, C, N, S>::new(
 		consensus_state,
 		client,
+		sync,
 		network.clone(),
 		synchronizer,
 		2000,
