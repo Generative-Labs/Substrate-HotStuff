@@ -62,7 +62,7 @@ impl QCMaker {
 	) -> Result<Option<QC<B>>, HotstuffError> {
 		// TODO check voter weather in authorities?
 		if self.votes.iter().any(|(id, _)| id.eq(&vote.voter)) {
-			return Err(AuthorityReuse(vote.voter.to_owned()))
+			return Ok(None)
 		}
 
 		self.votes
@@ -105,7 +105,7 @@ impl TCMaker {
 		let voter = timeout.voter;
 		// TODO check voter weather in authorities?
 		if self.votes.iter().any(|(id, _, _)| id.eq(&voter)) {
-			return Err(AuthorityReuse(voter.to_owned()))
+			return Ok(None)
 		}
 
 		self.votes.push((voter, timeout.signature.ok_or(NullSignature)?, timeout.view));

@@ -117,7 +117,9 @@ impl<B: BlockT> sc_network_gossip::Validator<B> for GossipValidator<B> {
 				_ => 0,
 			};
 
-			if message_vew < self.get_view() {
+			let current_view = self.get_view();
+
+			if current_view > 1 && message_vew < current_view - 1 {
 				return ValidationResult::Discard
 			}
 			return ValidationResult::ProcessAndKeep(ConsensusMessage::<B>::gossip_topic())
@@ -137,11 +139,13 @@ impl<B: BlockT> sc_network_gossip::Validator<B> for GossipValidator<B> {
 					_ => 0,
 				};
 
-				if message_vew < self.get_view() {
+				let current_view = self.get_view();
+				if current_view >= 1 && message_vew < current_view - 1 {
 					return true
 				}
+				return false
 			}
-			false
+			true
 		})
 	}
 
@@ -163,7 +167,8 @@ impl<B: BlockT> sc_network_gossip::Validator<B> for GossipValidator<B> {
 					_ => 0,
 				};
 
-				if message_vew < self.get_view() {
+				let current_view = self.get_view();
+				if current_view >= 1 && message_vew < current_view - 1{
 					return false
 				}
 				return true

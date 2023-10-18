@@ -339,7 +339,7 @@ where
 		self.network.gossip_engine.lock().gossip_message(
 			ConsensusMessage::<B>::gossip_topic(),
 			message.encode(),
-			false,
+			true,
 		);
 
 		self.handle_timeout(&timeout).await
@@ -378,7 +378,7 @@ where
 			self.network.gossip_engine.lock().gossip_message(
 				ConsensusMessage::<B>::gossip_topic(),
 				message.encode(),
-				false,
+				true,
 			);
 
 			if self.state.is_leader() {
@@ -555,7 +555,7 @@ where
 		self.processing_block = None;
 
 		if self.state.is_leader() {
-			info!(target: "Hotstuff","~~ handle_tc. leader make proposal valid tc, tc.view {}, self.view {}",tc.view, self.state.view());
+			info!(target: "Hotstuff","¥T¥ handle_tc. leader make proposal valid tc, tc.view {}, self.view {}",tc.view, self.state.view());
 			self.generate_proposal(None).await?;
 		}
 
