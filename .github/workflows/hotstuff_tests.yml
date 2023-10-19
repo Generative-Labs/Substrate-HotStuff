@@ -27,7 +27,5 @@ jobs:
           default: true
       - name: Install required
         run: sudo apt-get install --assume-yes git clang curl libssl-dev protobuf-compiler    
-      - name: Install Wasm toolchain
-        run: rustup target add wasm32-unknown-unknown
       - name: Test hotstuff
         run: cargo test -p hotstuff
