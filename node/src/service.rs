@@ -233,7 +233,7 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 			telemetry.as_ref().map(|x| x.handle()),
 		);
 
-		let slot_duration = sc_consensus_hotstuff::slot_duration(&*client)?;
+		let slot_duration = sc_consensus_aura::slot_duration(&*client)?;
 
 		let aura_block_author =
 			sc_consensus_aura::start_aura::<AuraPair, _, _, _, _, _, _, _, _, _, _>(
