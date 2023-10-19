@@ -408,7 +408,7 @@ where
 			proposal.digest(),
 		);
 
-		if !proposal.payload.block_hash.eq(&Self::empty_payload_hash()){
+		if !proposal.payload.block_hash.eq(&Self::empty_payload_hash()) {
 			match self.client.status(proposal.payload.block_hash) {
 				Ok(block_status) =>
 					if BlockStatus::Unknown == block_status {

@@ -4,14 +4,14 @@ use std::sync::Arc;
 use futures::FutureExt;
 
 use sc_client_api::{Backend, BlockBackend};
-use sc_consensus_hotstuff::{ImportQueueParams, SlotProportion, StartHotstuffParams};
+use sc_consensus_aura::{ImportQueueParams, SlotProportion, StartAuraParams};
 
 pub use sc_executor::NativeElseWasmExecutor;
 use sc_service::{error::Error as ServiceError, Configuration, TaskManager};
 use sc_telemetry::{Telemetry, TelemetryWorker};
 use sc_transaction_pool_api::OffchainTransactionPoolFactory;
 
-use sp_consensus_hotstuff::AuthorityPair as HotstuffPair;
+use sp_consensus_aura::sr25519::AuthorityPair as AuraPair;
 
 use node_template_runtime::{self, opaque::Block, RuntimeApi};
 
@@ -95,10 +95,10 @@ pub fn new_partial(
 
 	let (hotstuff_block_import, grandpa_link) = hotstuff::block_import(client.clone(), &client)?;
 
-	let slot_duration = sc_consensus_hotstuff::slot_duration(&*client)?;
+	let slot_duration = sc_consensus_aura::slot_duration(&*client)?;
 
 	let import_queue =
-		sc_consensus_hotstuff::import_queue::<HotstuffPair, _, _, _, _, _>(ImportQueueParams {
+		sc_consensus_aura::import_queue::<AuraPair, _, _, _, _, _>(ImportQueueParams {
 			block_import: hotstuff_block_import.clone(),
 			justification_import: Some(Box::new(hotstuff_block_import.clone())),
 			client: client.clone(),
@@ -233,11 +233,11 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 			telemetry.as_ref().map(|x| x.handle()),
 		);
 
-		let slot_duration = sc_consensus_hotstuff::slot_duration(&*client)?;
+		let slot_duration = sc_consensus_aura::slot_duration(&*client)?;
 
-		let hotstuff_block_author =
-			sc_consensus_hotstuff::start_hotstuff::<HotstuffPair, _, _, _, _, _, _, _, _, _, _>(
-				StartHotstuffParams {
+		let aura_block_author =
+			sc_consensus_aura::start_aura::<AuraPair, _, _, _, _, _, _, _, _, _, _>(
+				StartAuraParams {
 					slot_duration,
 					client,
 					select_chain,
@@ -247,7 +247,7 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 						let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
 
 						let slot =
-						sp_consensus_hotstuff::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
+						sp_consensus_aura::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
 							*timestamp,
 							slot_duration,
 						);
@@ -271,7 +271,7 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 		task_manager.spawn_essential_handle().spawn_blocking(
 			"hotstuff block author",
 			Some("block-authoring"),
-			hotstuff_block_author,
+			aura_block_author,
 		);
 
 		let (voter, hotstuff_network) = hotstuff::consensus::start_hotstuff(
