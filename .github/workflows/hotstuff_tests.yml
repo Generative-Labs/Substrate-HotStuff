@@ -25,7 +25,7 @@ jobs:
           target: wasm32-unknown-unknown
           override: true
           default: true
-      - name: Install Wasm toolchain
-        run: rustup target add wasm32-unknown-unknown
+      - name: Install required
+        run: sudo apt-get install --assume-yes git clang curl libssl-dev protobuf-compiler    
       - name: Test hotstuff
         run: cargo test -p hotstuff
