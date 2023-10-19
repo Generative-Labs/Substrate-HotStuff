@@ -22,3 +22,7 @@ tmp/
 *.sh
 
 logs
+
+*.Dockerfile
+
+*.dockerignore
