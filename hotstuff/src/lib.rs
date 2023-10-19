@@ -1,72 +1,20 @@
-use futures::prelude::*;
+pub mod aux_schema;
+pub mod import;
+pub mod message;
+pub use import::HotstuffBlockImport;
+pub mod aggregator;
+pub mod authorities;
+pub mod client;
+pub mod config;
+pub mod consensus;
+pub mod network;
+pub mod primitives;
+pub mod store;
+pub mod synchronizer;
 
-use sp_consensus::Error as ConsensusError;
-use tokio::time::{sleep, Duration};
+pub use client::{block_import, LinkHalf};
 
+/// The log target to be used by client code.
+pub const CLIENT_LOG_TARGET: &str = "hotstuff";
 
-struct HotstuffWork {
-}
-
-impl HotstuffWork {
-    async fn do_work(&self) {
-        // Implement your actual work logic here
-        println!("Performing HotstuffWork...");
-    }
-}
-
-// pub fn start_hotstuff()  -> Result<impl Future<Output = ()>, ConsensusError> {
-//     println!("Hello hotstuff");
-
-//     let work = HotstuffWork {};
-
-//     let futureWork = async move {
-//         work.do_work().await;
-//         // Perform your async work here using HotstuffWork
-//         println!("👷🏻‍♂️HotstuffWork completed.");
-//     };
-
-
-//     Ok(start_hotstuff_task())
-// }
-
-pub async fn start_hotstuff_task() {
-
-	loop {
-        // For example, you can await some asynchronous operations.
-        sleep(Duration::from_millis(3000)).await;
-   
-        println!("3000 ms have elapsed");
-	}
-}
-
-pub fn start_hotstuff() -> Result<impl Future<Output = ()>, ConsensusError> {
-    println!("Hello hotstuff");
-
-    let work = HotstuffWork {};
-
-    let future_work = async move {
-        loop {
-            work.do_work().await;
-            sleep(Duration::from_millis(3000)).await;
-            println!("3000 ms have elapsed");
-        }
-    };
-
-    Ok(future_work)
-}
-
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_start_hotstuff() {
-        // Arrange
-        let result = start_hotstuff().expect("hotstuff entry function");
-
-        // Assert
-        // Add your assertions here if needed
-
-    }
-}
+pub use authorities::SharedAuthoritySet;
