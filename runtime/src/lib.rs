@@ -47,8 +47,6 @@ pub use sp_runtime::{Perbill, Permill};
 use hotstuff_primitives::AuthorityId as HotstuffId;
 
 pub use pallet_hotstuff;
-/// Import the template pallet.
-pub use pallet_template;
 
 /// An index to a block.
 pub type BlockNumber = u32;
@@ -277,12 +275,6 @@ impl pallet_sudo::Config for Runtime {
 	type WeightInfo = pallet_sudo::weights::SubstrateWeight<Runtime>;
 }
 
-/// Configure the pallet-template in pallets/template.
-impl pallet_template::Config for Runtime {
-	type RuntimeEvent = RuntimeEvent;
-	type WeightInfo = pallet_template::weights::SubstrateWeight<Runtime>;
-}
-
 /// Configure the pallet-hotstuff in pallets/hotstuff.
 impl pallet_hotstuff::Config for Runtime {
 	type AuthorityId = HotstuffId;
@@ -303,10 +295,8 @@ construct_runtime!(
 		Balances: pallet_balances,
 		TransactionPayment: pallet_transaction_payment,
 		Sudo: pallet_sudo,
-		// Include the custom logic from the pallet-template in the runtime.
-		TemplateModule: pallet_template,
-		Hotstuff: pallet_hotstuff,
 		// Session: pallet_session,
+		Hotstuff: pallet_hotstuff,
 	}
 );
 
@@ -354,7 +344,6 @@ mod benches {
 		[pallet_balances, Balances]
 		[pallet_timestamp, Timestamp]
 		[pallet_sudo, Sudo]
-		[pallet_template, TemplateModule]
 	);
 }
 use frame_support::log;
