@@ -1,8 +1,3 @@
-// use node_template_runtime::{
-// 	AccountId, AuraConfig, BalancesConfig, GrandpaConfig, RuntimeGenesisConfig, Signature,
-// 	SudoConfig, SystemConfig, WASM_BINARY, pallet_hotstuff
-// };
-
 use node_template_runtime::{
 	pallet_hotstuff, AccountId, AuraConfig, BalancesConfig, RuntimeGenesisConfig, Signature,
 	SudoConfig, SystemConfig, WASM_BINARY,

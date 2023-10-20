@@ -196,7 +196,6 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 	let role = config.role.clone();
 	let force_authoring = config.force_authoring;
 	let _name = config.network.node_name.clone();
-	let _enable_grandpa = !config.disable_grandpa;
 	let prometheus_registry = config.prometheus_registry().cloned();
 
 	let rpc_extensions_builder = {

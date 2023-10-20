@@ -30,8 +30,6 @@ use crate::{
 	primitives::{HotstuffError, HotstuffError::*},
 };
 
-// TODO remove finalize_grandpa reference.
-
 // const LOG_TARGET: &str  = "hotstuff";
 pub struct HotstuffBlockImport<Backend, Block: BlockT, Client> {
 	inner: Arc<Client>,
@@ -58,7 +56,6 @@ impl<Backend, Block: BlockT, Client> HotstuffBlockImport<Backend, Block, Client>
 #[async_trait::async_trait]
 impl<BE, Block: BlockT, Client> BlockImport<Block> for HotstuffBlockImport<BE, Block, Client>
 where
-	// NumberFor<Block>: finality_grandpa::BlockNumberOps,
 	BE: Backend<Block>,
 	Client: ClientForHotstuff<Block, BE>,
 	for<'a> &'a Client:
@@ -113,7 +110,6 @@ impl<BE, Block: BlockT, Client> HotstuffBlockImport<BE, Block, Client>
 where
 	BE: Backend<Block>,
 	Client: ClientForHotstuff<Block, BE>,
-	// NumberFor<Block>: finality_grandpa::BlockNumberOps,
 {
 	/// Import a block justification and finalize the block.
 	///
@@ -148,7 +144,6 @@ where
 impl<BE, Block: BlockT, Client> JustificationImport<Block>
 	for HotstuffBlockImport<BE, Block, Client>
 where
-	// NumberFor<Block>: finality_grandpa::BlockNumberOps,
 	BE: Backend<Block>,
 	Client: ClientForHotstuff<Block, BE>,
 {
