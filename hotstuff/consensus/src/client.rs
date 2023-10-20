@@ -99,9 +99,6 @@ where
 	Client: ExecutorProvider<Block, Executor = E> + HeaderBackend<Block>,
 {
 	fn get(&self) -> Result<Vec<AuthorityId>, ClientError> {
-		// This implementation uses the Grandpa runtime API instead of reading directly from the
-		// `GRANDPA_AUTHORITIES_KEY` as the data may have been migrated since the genesis block of
-		// the chain, whereas the runtime API is backwards compatible.
 		self.executor()
 			.call(
 				self.expect_block_hash_from_id(&BlockId::Number(Zero::zero()))?,
@@ -112,7 +109,7 @@ where
 			.and_then(|call_result| {
 				Decode::decode(&mut &call_result[..]).map_err(|err| {
 					ClientError::CallResultDecode(
-						"failed to decode GRANDPA authorities set proof",
+						"failed to decode hotstuff authorities set proof",
 						err,
 					)
 				})
