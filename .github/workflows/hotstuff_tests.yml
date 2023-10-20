@@ -28,4 +28,4 @@ jobs:
       - name: Install required
         run: sudo apt-get install --assume-yes git clang curl libssl-dev protobuf-compiler    
       - name: Test hotstuff
-        run: cargo test -p hotstuff
+        run: cargo test -p hotstuff-consensus
