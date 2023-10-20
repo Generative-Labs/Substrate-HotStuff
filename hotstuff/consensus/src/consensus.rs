@@ -19,7 +19,6 @@ use sc_network::types::ProtocolName;
 use sc_network_gossip::TopicNotification;
 use sp_application_crypto::AppCrypto;
 use sp_blockchain::BlockStatus;
-use sp_consensus_hotstuff::{AuthorityId, AuthorityList, AuthoritySignature, HOTSTUFF_KEY_TYPE};
 use sp_core::{crypto::ByteArray, traits::CallContext};
 use sp_keystore::KeystorePtr;
 use sp_runtime::{
@@ -36,6 +35,7 @@ use crate::{
 	primitives::{HotstuffError, HotstuffError::*, ViewNumber},
 	synchronizer::{Synchronizer, Timer},
 };
+use hotstuff_primitives::{AuthorityId, AuthorityList, AuthoritySignature, HOTSTUFF_KEY_TYPE};
 
 #[cfg(test)]
 #[path = "tests/consensus_tests.rs"]
@@ -778,7 +778,7 @@ where
 	N: NetworkT<B> + Sync + 'static,
 	S: SyncingT<B> + Sync + 'static,
 	C: ClientForHotstuff<B, BE> + 'static,
-	C::Api: sp_consensus_hotstuff::HotstuffApi<B, AuthorityId>,
+	C::Api: hotstuff_primitives::HotstuffApi<B, AuthorityId>,
 {
 	let LinkHalf { client, .. } = link;
 	let authorities = get_genesis_authorities_from_client::<B, BE, C>(client.clone());

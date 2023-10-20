@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use sp_consensus_hotstuff::{AuthorityId, AuthorityList, AuthoritySignature};
+use hotstuff_primitives::{AuthorityId, AuthorityList, AuthoritySignature};
 use sp_runtime::traits::Block;
 
 use crate::{

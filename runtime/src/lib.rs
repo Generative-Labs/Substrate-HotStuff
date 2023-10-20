@@ -8,8 +8,6 @@ include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
 use sp_api::impl_runtime_apis;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
-use sp_consensus_hotstuff::AuthorityId as HotstuffId;
-
 use sp_core::{crypto::KeyTypeId, OpaqueMetadata};
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
@@ -45,6 +43,8 @@ use pallet_transaction_payment::{ConstFeeMultiplier, CurrencyAdapter, Multiplier
 #[cfg(any(feature = "std", test))]
 pub use sp_runtime::BuildStorage;
 pub use sp_runtime::{Perbill, Permill};
+
+use hotstuff_primitives::AuthorityId as HotstuffId;
 
 pub use pallet_hotstuff;
 /// Import the template pallet.
@@ -435,9 +435,9 @@ impl_runtime_apis! {
 		}
 	}
 
-	impl sp_consensus_hotstuff::HotstuffApi<Block, HotstuffId> for Runtime {
-		fn slot_duration() -> sp_consensus_hotstuff::SlotDuration {
-			sp_consensus_hotstuff::SlotDuration::from_millis(Hotstuff::slot_duration())
+	impl hotstuff_primitives::HotstuffApi<Block, HotstuffId> for Runtime {
+		fn slot_duration() -> hotstuff_primitives::SlotDuration {
+			hotstuff_primitives::SlotDuration::from_millis(Hotstuff::slot_duration())
 		}
 
 		fn authorities() -> Vec<HotstuffId> {

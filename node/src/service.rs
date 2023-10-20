@@ -51,8 +51,8 @@ pub fn new_partial(
 		sc_consensus::DefaultImportQueue<Block, FullClient>,
 		sc_transaction_pool::FullPool<Block, FullClient>,
 		(
-			hotstuff::HotstuffBlockImport<FullBackend, Block, FullClient>,
-			hotstuff::LinkHalf<Block, FullClient, FullSelectChain>,
+			hotstuff_consensus::HotstuffBlockImport<FullBackend, Block, FullClient>,
+			hotstuff_consensus::LinkHalf<Block, FullClient, FullSelectChain>,
 			Option<Telemetry>,
 		),
 	>,
@@ -93,7 +93,8 @@ pub fn new_partial(
 		client.clone(),
 	);
 
-	let (hotstuff_block_import, grandpa_link) = hotstuff::block_import(client.clone(), &client)?;
+	let (hotstuff_block_import, grandpa_link) =
+		hotstuff_consensus::block_import(client.clone(), &client)?;
 
 	let slot_duration = sc_consensus_aura::slot_duration(&*client)?;
 
@@ -106,7 +107,7 @@ pub fn new_partial(
 				let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
 
 				let slot =
-					sp_consensus_hotstuff::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
+					sp_consensus_aura::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
 						*timestamp,
 						slot_duration,
 					);
@@ -147,12 +148,12 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 
 	let mut net_config = sc_network::config::FullNetworkConfiguration::new(&config.network);
 
-	let hotstuff_protocol_name = hotstuff::config::standard_name(
+	let hotstuff_protocol_name = hotstuff_consensus::config::standard_name(
 		&client.block_hash(0).ok().flatten().expect("Genesis block exists; qed"),
 		&config.chain_spec,
 	);
 
-	net_config.add_notification_protocol(hotstuff::config::hotstuff_peers_set_config(
+	net_config.add_notification_protocol(hotstuff_consensus::config::hotstuff_peers_set_config(
 		hotstuff_protocol_name.clone(),
 	));
 
@@ -274,7 +275,7 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 			aura_block_author,
 		);
 
-		let (voter, hotstuff_network) = hotstuff::consensus::start_hotstuff(
+		let (voter, hotstuff_network) = hotstuff_consensus::consensus::start_hotstuff(
 			network,
 			hotstuff_link,
 			Arc::new(sync_service),

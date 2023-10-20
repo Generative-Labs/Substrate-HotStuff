@@ -1,7 +1,8 @@
 use sc_client_api::backend::AuxStore;
 use sp_blockchain::Result as ClientResult;
-use sp_consensus_hotstuff::AuthorityList;
 use sp_runtime::traits::{Block as BlockT, NumberFor};
+
+use hotstuff_primitives::AuthorityList;
 
 use crate::authorities::{AuthoritySet, SharedAuthoritySet};
 

@@ -3,7 +3,8 @@ use std::{fmt::Debug, marker::PhantomData, ops::Add};
 use parity_scale_codec::{Decode, Encode};
 use parking_lot::MappedMutexGuard;
 use sc_consensus::shared_data::{SharedData, SharedDataLocked};
-use sp_consensus_hotstuff::AuthorityList;
+
+use hotstuff_primitives::AuthorityList;
 
 /// A shared authority set.
 pub struct SharedAuthoritySet<H, N> {

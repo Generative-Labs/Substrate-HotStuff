@@ -1,9 +1,10 @@
 use super::*;
 
 use sc_keystore::LocalKeystore;
-use sp_consensus_hotstuff::{AuthorityId, AuthorityList, HOTSTUFF_KEY_TYPE};
 use sp_keystore::KeystorePtr;
 use sp_runtime::testing::{Header as TestHeader, TestXt};
+
+use hotstuff_primitives::{AuthorityId, AuthorityList, HOTSTUFF_KEY_TYPE};
 
 type TestExtrinsic = TestXt<(), ()>;
 type TestBlock = sp_runtime::testing::Block<TestExtrinsic>;

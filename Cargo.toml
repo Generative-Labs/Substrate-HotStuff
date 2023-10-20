@@ -4,7 +4,9 @@ members = [
     "node",
     "pallets/template",
     "runtime",
-    "hotstuff"
+    "hotstuff/consensus",
+    "hotstuff/primitives"
+
 ]
 [profile.release]
 panic = "unwind"

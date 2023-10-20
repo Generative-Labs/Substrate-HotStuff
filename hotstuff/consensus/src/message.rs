@@ -4,8 +4,9 @@ use parity_scale_codec::{Decode, Encode};
 use sp_core::Pair;
 use sp_runtime::traits::{Block as BlockT, Hash as HashT, Header as HeaderT};
 
+use hotstuff_primitives::{AuthorityId, AuthorityList, AuthorityPair, AuthoritySignature};
+
 use crate::primitives::{HotstuffError, HotstuffError::*, ViewNumber};
-use sp_consensus_hotstuff::{AuthorityId, AuthorityList, AuthorityPair, AuthoritySignature};
 
 #[cfg(test)]
 #[path = "tests/message_tests.rs"]

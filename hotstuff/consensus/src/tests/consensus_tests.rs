@@ -16,7 +16,7 @@ use sp_keystore::{testing::MemoryKeystore, Keystore, KeystorePtr};
 use sp_runtime::traits::Header as HeaderT;
 
 use crate::client::GenesisAuthoritySetProvider;
-use sp_consensus_hotstuff::HotstuffApi;
+use hotstuff_primitives::HotstuffApi;
 
 type TestLinkHalf =
 	LinkHalf<Block, PeersFullClient, LongestChain<substrate_test_runtime_client::Backend, Block>>;
@@ -65,7 +65,7 @@ struct TestNet {
 
 sp_api::mock_impl_runtime_apis! {
 	impl HotstuffApi<Block, AuthorityId> for RuntimeApi {
-		fn slot_duration() -> sp_consensus_hotstuff::SlotDuration {
+		fn slot_duration() -> hotstuff_primitives::SlotDuration {
 			// sp_consensus_hotstuff::SlotDuration::from_millis(Hotstuff::slot_duration())
 			unimplemented!()
 		}

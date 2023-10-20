@@ -1,4 +1,4 @@
-use sp_consensus_hotstuff::AuthorityId;
+use hotstuff_primitives::AuthorityId;
 
 // define some primitives used in hotstuff
 pub type ViewNumber = u64;

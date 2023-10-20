@@ -6,6 +6,7 @@ use std::{
 };
 
 use futures::prelude::*;
+use parking_lot::Mutex;
 use sc_network::{
 	NetworkBlock, NetworkStateInfo, NetworkSyncForkRequest, ObservedRole, PeerId, ProtocolName,
 	SyncEventStream,
@@ -14,11 +15,10 @@ use sc_network_gossip::{
 	GossipEngine, MessageIntent, Network as GossipNetwork, ValidationResult, ValidatorContext,
 };
 use sc_utils::mpsc::{tracing_unbounded, TracingUnboundedReceiver};
-use sp_consensus_hotstuff::RoundNumber;
 use sp_core::Decode;
 use sp_runtime::traits::{Block as BlockT, Hash as HashT, Header as HeaderT, NumberFor};
 
-use parking_lot::Mutex;
+use hotstuff_primitives::RoundNumber;
 
 use crate::{import::PeerReport, message::ConsensusMessage, primitives::ViewNumber};
 

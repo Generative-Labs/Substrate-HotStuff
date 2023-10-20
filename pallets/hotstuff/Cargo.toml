@@ -23,7 +23,7 @@ frame-system = { version = "4.0.0-dev", default-features = false, git = "https:/
 sp-runtime = { version = "24.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 sp-std = { version = "8.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 pallet-timestamp = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
-sp-consensus-hotstuff = { default-features = false, path="../../primitives/consensus/hotstuff" }
+hotstuff-primitives = { default-features = false, path="../../hotstuff/primitives" }
 
 [dev-dependencies]
 sp-core = { version = "21.0.0",default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
