@@ -26,6 +26,8 @@ jobs:
           override: true
           default: true
       - name: Install required
-        run: sudo apt-get install --assume-yes git clang curl libssl-dev protobuf-compiler    
-      - name: Test hotstuff
-        run: cargo test -p hotstuff-consensus
+        run: sudo apt-get install --assume-yes git clang curl libssl-dev protobuf-compiler 
+      - name: Update submodule
+        run: git submodule update --init    
+      - name: Test node building
+        run: cargo build --release

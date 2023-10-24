@@ -2,9 +2,7 @@
 resolver = "2"
 members = [
     "node",
-    "runtime",
-    "hotstuff/consensus",
-    "hotstuff/primitives"
+    "runtime"
 ]
 [profile.release]
 panic = "unwind"

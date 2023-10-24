@@ -46,7 +46,7 @@ frame-benchmarking = { version = "4.0.0-dev", default-features = false, git = "h
 frame-system-benchmarking = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", optional = true , branch = "polkadot-v1.0.0" }
 
 # Local Dependencies
-pallet-hotstuff = { default-features = false, path = "../pallets/hotstuff" }
+pallet-hotstuff = { default-features = false, path = "../hotstuff/pallets/hotstuff" }
 
 hotstuff-primitives = {version="0.1.0", default-features = false, path = "../hotstuff/primitives" }
 
