@@ -82,8 +82,8 @@ rand = "0.7.3"
 thiserror = "1.0.21"
 anyhow = "1.0.38"
 
-hotstuff-consensus = {  path = "../hotstuff/hotstuff/consensus" }
-hotstuff-primitives = { path = "../hotstuff/hotstuff/primitives" }
+hotstuff-consensus = {  path = "../hotstuff/consensus" }
+hotstuff-primitives = { path = "../hotstuff/primitives" }
 
 [build-dependencies]
 substrate-build-script-utils = { version = "3.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
