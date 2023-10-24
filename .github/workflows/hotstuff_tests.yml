@@ -28,6 +28,6 @@ jobs:
       - name: Install required
         run: sudo apt-get install --assume-yes git clang curl libssl-dev protobuf-compiler 
       - name: Update submodule
-        run: git submodule update --remote     
+        run: git submodule update --init    
       - name: Test node building
         run: cargo build --release
