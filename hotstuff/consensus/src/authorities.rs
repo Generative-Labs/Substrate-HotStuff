@@ -1,0 +1,104 @@
+use std::{fmt::Debug, marker::PhantomData, ops::Add};
+
+use parity_scale_codec::{Decode, Encode};
+use parking_lot::MappedMutexGuard;
+use sc_consensus::shared_data::{SharedData, SharedDataLocked};
+
+use hotstuff_primitives::AuthorityList;
+
+/// A shared authority set.
+pub struct SharedAuthoritySet<H, N> {
+	inner: SharedData<AuthoritySet<H, N>>,
+}
+
+impl<H: Eq, N> SharedAuthoritySet<H, N>
+where
+	N: Add<Output = N> + Ord + Clone + Debug,
+	H: Clone + Debug,
+{
+	/// Clone the inner `AuthoritySetChanges`.
+	pub fn authority_set_changes(&self) -> AuthoritySetChanges<N> {
+		self.inner().authority_set_changes.clone()
+	}
+}
+
+impl<H, N> SharedAuthoritySet<H, N> {
+	pub fn inner(&self) -> MappedMutexGuard<AuthoritySet<H, N>> {
+		self.inner.shared_data()
+	}
+
+	/// Returns access to the [`AuthoritySet`] and locks it.
+	///
+	/// For more information see [`SharedDataLocked`].
+	#[allow(unused)]
+	pub(crate) fn inner_locked(&self) -> SharedDataLocked<AuthoritySet<H, N>> {
+		self.inner.shared_data_locked()
+	}
+}
+
+/// Tracks historical authority set changes. We store the block numbers for the last block
+/// of each authority set, once they have been finalized. These blocks are guaranteed to
+/// have a justification unless they were triggered by a forced change.
+#[derive(Debug, Encode, Decode, Clone, PartialEq)]
+pub struct AuthoritySetChanges<N>(Vec<(u64, N)>);
+
+impl<N: Ord + Clone> AuthoritySetChanges<N> {
+	pub(crate) fn empty() -> Self {
+		Self(Default::default())
+	}
+}
+
+/// A set of authorities.
+#[derive(Debug, Clone, PartialEq)]
+pub struct AuthoritySet<H, N> {
+	_phantom: PhantomData<H>,
+	pub current_authorities: AuthorityList,
+	pub(crate) authority_set_changes: AuthoritySetChanges<N>,
+}
+
+impl<H, N> From<AuthoritySet<H, N>> for SharedAuthoritySet<H, N> {
+	fn from(set: AuthoritySet<H, N>) -> Self {
+		SharedAuthoritySet { inner: SharedData::new(set) }
+	}
+}
+
+impl<H, N> AuthoritySet<H, N>
+where
+	H: PartialEq,
+	N: Ord + Clone,
+{
+	// authority sets must be non-empty and all weights must be greater than 0
+	fn invalid_authority_list(authorities: &AuthorityList) -> bool {
+		authorities.is_empty() || authorities.iter().any(|(_, w)| *w == 0)
+	}
+
+	/// Get a genesis set with given authorities.
+	pub(crate) fn genesis(initial: AuthorityList) -> Option<Self> {
+		if Self::invalid_authority_list(&initial) {
+			return None;
+		}
+
+		Some(AuthoritySet {
+			current_authorities: initial,
+			authority_set_changes: AuthoritySetChanges::empty(),
+			_phantom: PhantomData,
+		})
+	}
+
+	/// Create a new authority set.
+	#[allow(unused)]
+	pub(crate) fn new(
+		authorities: AuthorityList,
+		authority_set_changes: AuthoritySetChanges<N>,
+	) -> Option<Self> {
+		if Self::invalid_authority_list(&authorities) {
+			return None;
+		}
+
+		Some(AuthoritySet {
+			current_authorities: authorities,
+			authority_set_changes,
+			_phantom: PhantomData,
+		})
+	}
+}
