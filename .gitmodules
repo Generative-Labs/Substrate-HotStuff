@@ -1,3 +1,0 @@
-[submodule "hotstuff"]
-	path = hotstuff
-	url = https://github.com/Generative-Labs/hotstuff.git

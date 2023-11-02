@@ -27,7 +27,7 @@ jobs:
           default: true
       - name: Install required
         run: sudo apt-get install --assume-yes git clang curl libssl-dev protobuf-compiler 
-      - name: Update submodule
-        run: git submodule update --init    
+      - name: Test hotstuff pallet
+        run: cargo test -p hotstuff-consensus
       - name: Test node building
-        run: cargo build --release
+        run: cargo build --release        
