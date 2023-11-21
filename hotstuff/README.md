@@ -153,8 +153,8 @@ Hotstuff pallet must be initialized in the ChainSpec, or it will result in an in
 # Summary
 Even though the previous section provided a detailed description of how to integrate Hotstuff into Substrate, you may still have some confusion, or your integration of the Hotstuff consensus node may not be running correctly. You can refer to:
 
-1. service config: https://github.com/Generative-Labs/Substrate-HotStuff/blob/main/node/src/service.rs 
-2. chain spec: https://github.com/Generative-Labs/Substrate-HotStuff/blob/main/node/src/chain_spec.rs
-3. runtime: https://github.com/Generative-Labs/Substrate-HotStuff/blob/main/runtime/src/lib.rs
+1. service config: https://github.com/Generative-Labs/Substrate-HotStuff/blob/main/node-template/node/src/service.rs 
+2. chain spec: https://github.com/Generative-Labs/Substrate-HotStuff/blob/main/node-template/node/src/chain_spec.rs
+3. runtime: https://github.com/Generative-Labs/Substrate-HotStuff/blob/main/node-template/runtime/src/lib.rs
 
 If the problem still persists after this, you can open an issue in this repository.
