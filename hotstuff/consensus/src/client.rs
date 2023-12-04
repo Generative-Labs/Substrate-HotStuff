@@ -4,8 +4,8 @@ use std::{marker::PhantomData, sync::Arc};
 use parity_scale_codec::Decode;
 
 use sc_client_api::{
-	AuxStore, Backend, BlockchainEvents, CallExecutor, ExecutionStrategy, ExecutorProvider,
-	Finalizer, LockImportRun, StorageProvider, TransactionFor,
+	AuxStore, Backend, BlockchainEvents, CallExecutor, ExecutorProvider, Finalizer, LockImportRun,
+	StorageProvider,
 };
 use sc_consensus::BlockImport;
 use sp_api::ProvideRuntimeApi;
@@ -32,7 +32,7 @@ pub trait ClientForHotstuff<Block, BE>:
 	+ BlockchainEvents<Block>
 	+ ProvideRuntimeApi<Block>
 	+ ExecutorProvider<Block>
-	+ BlockImport<Block, Transaction = TransactionFor<BE, Block>, Error = sp_consensus::Error>
+	+ BlockImport<Block, Error = sp_consensus::Error>
 	+ StorageProvider<Block, BE>
 where
 	BE: Backend<Block>,
@@ -52,7 +52,7 @@ where
 		+ BlockchainEvents<Block>
 		+ ProvideRuntimeApi<Block>
 		+ ExecutorProvider<Block>
-		+ BlockImport<Block, Transaction = TransactionFor<BE, Block>, Error = sp_consensus::Error>
+		+ BlockImport<Block, Error = sp_consensus::Error>
 		+ StorageProvider<Block, BE>,
 {
 }
@@ -104,7 +104,6 @@ where
 				self.expect_block_hash_from_id(&BlockId::Number(Zero::zero()))?,
 				"HotstuffApi_authorities",
 				&[],
-				ExecutionStrategy::NativeElseWasm,
 				CallContext::Offchain,
 			)
 			.and_then(|call_result| {

@@ -16,7 +16,6 @@ use sc_consensus::{
 	BlockCheckParams, BlockImport, BlockImportParams, ImportResult, JustificationImport,
 };
 use sc_network::{PeerId, ReputationChange};
-use sp_api::TransactionFor;
 use sp_blockchain::BlockStatus;
 use sp_consensus::Error as ConsensusError;
 use sp_runtime::{
@@ -58,12 +57,9 @@ impl<BE, Block: BlockT, Client> BlockImport<Block> for HotstuffBlockImport<BE, B
 where
 	BE: Backend<Block>,
 	Client: ClientForHotstuff<Block, BE>,
-	for<'a> &'a Client:
-		BlockImport<Block, Error = ConsensusError, Transaction = TransactionFor<Client, Block>>,
-	TransactionFor<Client, Block>: 'static,
+	for<'a> &'a Client: BlockImport<Block, Error = ConsensusError>,
 {
 	type Error = ConsensusError;
-	type Transaction = TransactionFor<Client, Block>;
 
 	async fn check_block(
 		&mut self,
@@ -74,7 +70,7 @@ where
 
 	async fn import_block(
 		&mut self,
-		mut block: BlockImportParams<Block, Self::Transaction>,
+		mut block: BlockImportParams<Block>,
 	) -> Result<ImportResult, Self::Error> {
 		let hash = block.post_hash();
 

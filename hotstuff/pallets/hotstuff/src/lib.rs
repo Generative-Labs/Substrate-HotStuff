@@ -23,11 +23,11 @@
 
 use codec::{Decode, Encode, MaxEncodedLen};
 use frame_support::{
-	log,
 	traits::{DisabledValidators, FindAuthor, Get, OnTimestampSet, OneSessionHandler},
 	BoundedSlice, BoundedVec, ConsensusEngineId, Parameter,
 };
 use hotstuff_primitives::{AuthorityIndex, ConsensusLog, Slot, HOTSTUFF_ENGINE_ID};
+use log;
 use sp_runtime::{
 	generic::DigestItem,
 	traits::{IsMember, Member, SaturatedConversion, Saturating, Zero},
@@ -169,7 +169,7 @@ pub mod pallet {
 	}
 
 	#[pallet::genesis_build]
-	impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
+	impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
 		fn build(&self) {
 			Pallet::<T>::initialize_authorities(&self.authorities);
 		}

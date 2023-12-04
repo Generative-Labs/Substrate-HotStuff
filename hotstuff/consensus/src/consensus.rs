@@ -14,7 +14,7 @@ use log::{debug, error, info, trace};
 use parity_scale_codec::{Decode, Encode};
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 
-use sc_client_api::{Backend, CallExecutor, ExecutionStrategy};
+use sc_client_api::{Backend, CallExecutor};
 use sc_network::types::ProtocolName;
 use sc_network_gossip::TopicNotification;
 use sp_application_crypto::AppCrypto;
@@ -830,13 +830,7 @@ pub fn get_genesis_authorities_from_client<
 
 	let authorities_data = client
 		.executor()
-		.call(
-			genesis_block_hash,
-			"HotstuffApi_authorities",
-			&[],
-			ExecutionStrategy::NativeElseWasm,
-			CallContext::Offchain,
-		)
+		.call(genesis_block_hash, "HotstuffApi_authorities", &[], CallContext::Offchain)
 		.expect("call runtime failed");
 
 	let authorities: Vec<AuthorityId> = Decode::decode(&mut &authorities_data[..]).expect("");

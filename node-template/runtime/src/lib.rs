@@ -152,28 +152,13 @@ parameter_types! {
 	pub const SS58Prefix: u8 = 42;
 }
 
-// impl pallet_session::Config for Runtime {
-// 	type RuntimeEvent = RuntimeEvent;
-// 	type ValidatorId = <Self as frame_system::Config>::AccountId;
-// 	type ValidatorIdOf = pallet_staking::StashOf<Self>;
-// 	type ShouldEndSession = Babe;
-// 	type NextSessionRotation = Babe;
-// 	type SessionManager = pallet_session::historical::NoteHistoricalRoot<Self, Staking>;
-// 	type SessionHandler = <SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
-// 	type Keys = SessionKeys;
-// 	type WeightInfo = pallet_session::weights::SubstrateWeight<Runtime>;
-// }
-
-// impl pallet_session::historical::Config for Runtime {
-// 	type FullIdentification = pallet_staking::Exposure<AccountId, Balance>;
-// 	type FullIdentificationOf = pallet_staking::ExposureOf<Runtime>;
-// }
-
 // Configure FRAME pallets to include in runtime.
 
 impl frame_system::Config for Runtime {
 	/// The basic call filter to use in dispatchable.
 	type BaseCallFilter = frame_support::traits::Everything;
+	/// The block type for the runtime.
+	type Block = Block;
 	/// Block & extrinsics weights: base values and limits.
 	type BlockWeights = BlockWeights;
 	/// The maximum length of a block (in bytes).
@@ -184,16 +169,12 @@ impl frame_system::Config for Runtime {
 	type RuntimeCall = RuntimeCall;
 	/// The lookup mechanism to get account ID from whatever is passed in dispatchers.
 	type Lookup = AccountIdLookup<AccountId, ()>;
-	/// The index type for storing how many extrinsics an account has signed.
-	type Index = Index;
-	/// The index type for blocks.
-	type BlockNumber = BlockNumber;
+	/// The type for storing how many extrinsics an account has signed.
+	type Nonce = Nonce;
 	/// The type for hashing blocks and tries.
 	type Hash = Hash;
 	/// The hashing algorithm used.
 	type Hashing = BlakeTwo256;
-	/// The header type.
-	type Header = generic::Header<BlockNumber, BlakeTwo256>;
 	/// The ubiquitous event type.
 	type RuntimeEvent = RuntimeEvent;
 	/// The ubiquitous origin type.
@@ -227,6 +208,10 @@ impl pallet_aura::Config for Runtime {
 	type AuthorityId = AuraId;
 	type DisabledValidators = ();
 	type MaxAuthorities = ConstU32<32>;
+	type AllowMultipleBlocksPerSlot = ConstBool<false>;
+
+	#[cfg(feature = "experimental")]
+	type SlotDuration = pallet_aura::MinimumPeriodTimesTwo<Runtime>;
 }
 
 impl pallet_timestamp::Config for Runtime {
@@ -254,7 +239,8 @@ impl pallet_balances::Config for Runtime {
 	type WeightInfo = pallet_balances::weights::SubstrateWeight<Runtime>;
 	type FreezeIdentifier = ();
 	type MaxFreezes = ();
-	type HoldIdentifier = ();
+	type RuntimeHoldReason = ();
+	type RuntimeFreezeReason = ();
 	type MaxHolds = ();
 }
 
@@ -289,12 +275,7 @@ impl pallet_hotstuff::Config for Runtime {
 }
 
 construct_runtime!(
-	pub struct Runtime
-	where
-		Block = Block,
-		NodeBlock = opaque::Block,
-		UncheckedExtrinsic = UncheckedExtrinsic,
-	{
+	pub struct Runtime {
 		System: frame_system,
 		Timestamp: pallet_timestamp,
 		Aura: pallet_aura,
