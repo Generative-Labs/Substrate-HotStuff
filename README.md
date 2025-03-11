@@ -1,5 +1,5 @@
 # Substrate HotStuff 
-Welcome to the code repository for Substrate HotStuff Consensus!
+Welcome to the code repository for Substrate HotStuff Consensus.
 
 ## Introduction
 This repository is created to implement the HotStuff consensus algorithm for the Substrate blockchain framework. 
